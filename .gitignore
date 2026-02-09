@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+
+# Env
+.env
+
+# Azure ZIP builds
+*.zip
+
+# Node
+node_modules/
+dist/
+build/
+
+# Vite
+.vite/
+
+# Editor
+.vscode/
