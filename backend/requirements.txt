@@ -1,5 +1,10 @@
+fastapi
+uvicorn
+gunicorn
 azure-functions
 azure-cosmos==4.5.1
 requests
 python-dotenv
 pandas
+azure-identity
+azure-keyvault-secrets

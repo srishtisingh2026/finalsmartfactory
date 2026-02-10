@@ -1,15 +1,23 @@
 import os
 from datetime import datetime, timezone
-from azure.cosmos import CosmosClient
 from collections import defaultdict
+
+from azure.cosmos import CosmosClient
+
+# 🔐 Key Vault (shared across App Service & Functions)
+from shared.secrets import get_secret
 
 
 def main(mytimer):
 
     # ==========================================
-    # Connect to Cosmos DB
+    # Connect to Cosmos DB (via Key Vault)
     # ==========================================
-    cosmos = CosmosClient.from_connection_string(os.environ["COSMOS_CONN_WRITE"])
+    COSMOS_CONN_WRITE = get_secret("COSMOS-CONN-WRITE")
+
+    cosmos = CosmosClient.from_connection_string(
+        COSMOS_CONN_WRITE
+    )
     db = cosmos.get_database_client("llmops-data")
 
     traces_container = db.get_container_client("traces")

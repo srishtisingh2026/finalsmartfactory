@@ -3,12 +3,17 @@ import random
 from datetime import datetime, timezone
 from azure.cosmos import CosmosClient, exceptions
 
+# 🔐 Key Vault (shared across App Service & Functions)
+from shared.secrets import get_secret
+
+
 # ============================================================
 # RATIOS
 # ============================================================
 GOOD_RATIO = 0.65
 BAD_CONTEXT_RATIO = 0.20
 BAD_ANSWER_RATIO = 0.15
+
 
 # ============================================================
 # USERS / TRACE TYPES
@@ -20,6 +25,7 @@ TRACE_NAMES = [
     "multi-hop-reasoning",
     "tool-use-flow"
 ]
+
 
 # ============================================================
 # EXPANDED SMART-FACTORY DATASET
@@ -346,6 +352,7 @@ BAD_ANSWERS = [
 
 ALL_CONTEXTS = [d["context"] for d in DATA]
 
+
 # ============================================================
 # TRACE COUNTER
 # ============================================================
@@ -367,6 +374,7 @@ def get_next_trace_number(counter_container):
     doc["value"] = next_no
     counter_container.upsert_item(doc)
     return next_no
+
 
 # ============================================================
 # TRACE BUILDER
@@ -391,7 +399,7 @@ def make_trace(trace_no, session_id, user_id, trace_name,
 
         # 🔥 RAG CORE
         "input": input_text,
-        "context": context_text,   # ✅ ADD THIS
+        "context": context_text,
         "output": output_text,
 
         "latency_ms": random.randint(200, 8000),
@@ -403,20 +411,24 @@ def make_trace(trace_no, session_id, user_id, trace_name,
         "model": random.choice(["gpt-4o", "gpt-4o-mini", "llama-3.3-70b"]),
     }
 
+
 # ============================================================
-# TIMER FUNCTION
+# TIMER FUNCTION (AZURE FUNCTION ENTRY)
 # ============================================================
 def main(mytimer):
 
-    cosmos = CosmosClient.from_connection_string(
-        os.environ["COSMOS_CONN_WRITE"]
-    )
-    db = cosmos.get_database_client("llmops-data")
+    # 🔐 Read Cosmos connection securely from Key Vault
+    COSMOS_CONN_WRITE = get_secret("COSMOS-CONN-WRITE")
 
+    cosmos = CosmosClient.from_connection_string(
+        COSMOS_CONN_WRITE
+    )
+
+    db = cosmos.get_database_client("llmops-data")
     traces_container = db.get_container_client("traces")
     counter_container = db.get_container_client("metrics")
 
-    # 🔥 HIGH VOLUME GENERATION
+    # 🔥 HIGH VOLUME TRACE GENERATION
     for _ in range(random.randint(2, 5)):
         base = random.choice(DATA)
 
@@ -426,7 +438,9 @@ def main(mytimer):
 
         r = random.random()
         if GOOD_RATIO <= r < GOOD_RATIO + BAD_CONTEXT_RATIO:
-            context_text = random.choice([c for c in ALL_CONTEXTS if c != context_text])
+            context_text = random.choice(
+                [c for c in ALL_CONTEXTS if c != context_text]
+            )
         elif r >= GOOD_RATIO + BAD_CONTEXT_RATIO:
             output_text = random.choice(BAD_ANSWERS)
 
@@ -442,5 +456,5 @@ def main(mytimer):
             output_text=output_text
         )
 
-        # ✅ MUST use create_item for Cosmos trigger
+        # ✅ MUST use create_item for Cosmos DB trigger
         traces_container.create_item(trace)

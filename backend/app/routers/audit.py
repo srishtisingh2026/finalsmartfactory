@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query
-from utils.cosmos import audit_container_read
+from backend.shared.cosmos import audit_container_read
 
 router = APIRouter(prefix="/audit", tags=["Audit"])
 

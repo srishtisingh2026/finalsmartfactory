@@ -2,7 +2,7 @@ import math
 from fastapi import APIRouter, HTTPException
 
 # 🚀 Import shared Cosmos container
-from utils.cosmos import metrics_container
+from backend.shared.cosmos import metrics_container
 
 router = APIRouter()
 

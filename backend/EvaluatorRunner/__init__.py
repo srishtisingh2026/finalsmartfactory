@@ -7,26 +7,19 @@ from datetime import datetime, timezone
 from azure.functions import DocumentList
 from azure.cosmos import CosmosClient, exceptions
 
-from evaluators.registry import EVALUATORS
-from utils.audit import audit_log   # 👈 ADD THIS
+from Templates.registry import EVALUATORS
+from shared.audit import audit_log
+
+# 🔐 Key Vault (shared across App Service & Functions)
+from shared.secrets import get_secret
 
 
 # --------------------------------------------------
-# Validate environment variables
+# Cosmos Clients (via Key Vault)
 # --------------------------------------------------
-COSMOS_CONN_READ = os.getenv("COSMOS_CONN_READ")
-COSMOS_CONN_WRITE = os.getenv("COSMOS_CONN_WRITE")
+COSMOS_CONN_READ = get_secret("COSMOS-CONN-READ")
+COSMOS_CONN_WRITE = get_secret("COSMOS-CONN-WRITE")
 
-if not COSMOS_CONN_READ:
-    raise RuntimeError("❌ Missing environment variable: COSMOS_CONN_READ")
-
-if not COSMOS_CONN_WRITE:
-    raise RuntimeError("❌ Missing environment variable: COSMOS_CONN_WRITE")
-
-
-# --------------------------------------------------
-# Cosmos Clients
-# --------------------------------------------------
 COSMOS_READ = CosmosClient.from_connection_string(COSMOS_CONN_READ)
 COSMOS_WRITE = CosmosClient.from_connection_string(COSMOS_CONN_WRITE)
 
@@ -35,6 +28,32 @@ DB_WRITE = COSMOS_WRITE.get_database_client("llmops-data")
 
 EVALUATORS_CONTAINER = DB_READ.get_container_client("evaluators")
 EVALS_CONTAINER = DB_WRITE.get_container_client("evaluations")
+
+
+# --------------------------------------------------
+# Trace Normalization (CRITICAL FIX)
+# --------------------------------------------------
+def normalize_trace(trace: dict) -> dict:
+    """
+    Normalize trace so all evaluators receive:
+    question, context, answer
+
+    TraceGenerator produces:
+      - input
+      - context
+      - output
+
+    Evaluators expect:
+      - question
+      - context
+      - answer
+    """
+    return {
+        "question": trace.get("question") or trace.get("input", ""),
+        "context": trace.get("context", ""),
+        "answer": trace.get("answer") or trace.get("output", ""),
+        "_raw": trace,  # keep original trace if needed later
+    }
 
 
 # --------------------------------------------------
@@ -91,8 +110,10 @@ def main(documents: DocumentList):
             # Sampling
             # -----------------------------
             sampling_rate = execution_cfg.get("sampling_rate", 1.0)
-            if not (0 <= sampling_rate <= 1):
+            if not isinstance(sampling_rate, (int, float)):
                 sampling_rate = 1.0
+
+            sampling_rate = max(0.0, min(1.0, sampling_rate))
 
             if random.random() > sampling_rate:
                 continue
@@ -122,7 +143,10 @@ def main(documents: DocumentList):
             # Idempotency
             # -----------------------------
             try:
-                EVALS_CONTAINER.read_item(item=eval_id, partition_key=trace_id)
+                EVALS_CONTAINER.read_item(
+                    item=eval_id,
+                    partition_key=trace_id
+                )
                 continue
             except exceptions.CosmosResourceNotFoundError:
                 pass
@@ -131,11 +155,12 @@ def main(documents: DocumentList):
                 continue
 
             # -----------------------------
-            # Run evaluator
+            # Run evaluator (NORMALIZED TRACE)
             # -----------------------------
             start_time = time.time()
             try:
-                result = evaluator_fn(trace)
+                normalized_trace = normalize_trace(trace)
+                result = evaluator_fn(normalized_trace)
                 status = "completed"
             except Exception as e:
                 logging.exception(

@@ -1,30 +1,26 @@
 import os
 import json
 import requests
-from dotenv import load_dotenv
-from pathlib import Path
+
+# 🔐 Key Vault (shared across App Service & Functions)
+from shared.secrets import get_secret
+
 
 # =====================================================
-# Load environment variables
+# Azure OpenAI configuration (from Key Vault)
 # =====================================================
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
-ENV_PATH = ROOT_DIR / ".env"
-load_dotenv(ENV_PATH)
-
-AZURE_KEY = os.getenv("AZURE_OPENAI_KEY")
-AZURE_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "").rstrip("/") + "/"
-AZURE_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini")
-AZURE_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01")
-
-if not AZURE_KEY:
-    raise RuntimeError("❌ Missing AZURE_OPENAI_KEY")
+AZURE_KEY = get_secret("AZURE-OPENAI-KEY")
+AZURE_ENDPOINT = get_secret("AZURE-OPENAI-ENDPOINT").rstrip("/") + "/"
+AZURE_DEPLOYMENT = get_secret("AZURE-OPENAI-DEPLOYMENT")
+AZURE_API_VERSION = get_secret("AZURE-OPENAI-API-VERSION")
 
 if not AZURE_ENDPOINT.startswith("https://"):
     raise RuntimeError("❌ AZURE_OPENAI_ENDPOINT looks incorrect")
 
+
 # =====================================================
-# Azure OpenAI Chat API Call
+# Azure OpenAI Chat Completions Call
 # =====================================================
 
 def call_azure_llm(prompt: str) -> str:
@@ -36,7 +32,7 @@ def call_azure_llm(prompt: str) -> str:
 
     headers = {
         "Content-Type": "application/json",
-        "api-key": AZURE_KEY
+        "api-key": AZURE_KEY,
     }
 
     payload = {
@@ -44,22 +40,21 @@ def call_azure_llm(prompt: str) -> str:
             {
                 "role": "system",
                 "content": (
-                    "You are a strict hallucination evaluator. "
-                    "Hallucination means information NOT supported by the provided context. "
-                    "You must produce a fine-grained numeric judgment. "
+                    "You are a strict RAG evaluator. "
+                    "Judge relevance with fine-grained numeric precision. "
                     "Return ONLY valid JSON."
                 )
             },
             {"role": "user", "content": prompt}
         ],
-        "temperature": 0
+        "temperature": 0,
     }
 
     response = requests.post(
         url,
         headers=headers,
         json=payload,
-        timeout=30
+        timeout=30,
     )
     response.raise_for_status()
 
@@ -70,40 +65,36 @@ def call_azure_llm(prompt: str) -> str:
 
     return choices[0]["message"]["content"]
 
+
 # =====================================================
 # Prompt Template (CONTINUOUS SCORING)
 # =====================================================
 
 MAX_CONTEXT_CHARS = 4000
-MAX_ANSWER_CHARS = 2000
 
-def build_prompt(question: str, context: str, answer: str) -> str:
+def build_prompt(question: str, context: str) -> str:
     question = (question or "").strip()
     context = (context or "")[:MAX_CONTEXT_CHARS]
-    answer = (answer or "")[:MAX_ANSWER_CHARS]
 
     return f"""
-Evaluate the hallucination of the following answer.
+Evaluate the CONTEXT RELEVANCE of the retrieved RAG context.
 
 Definition:
-Hallucination = information NOT supported by the context.
+Context relevance measures how well the retrieved context helps answer the question.
 
 Scoring instructions (IMPORTANT):
 - Return a FLOAT between 0.0 and 1.0
-- Use fine-grained values (e.g., 0.12, 0.47, 0.83)
-- Avoid round numbers unless the case is extremely clear
-- 0.0 = no hallucination
-- 1.0 = completely hallucinated
-- Higher score = more hallucination
+- Use fine-grained values (e.g., 0.18, 0.42, 0.76, 0.93)
+- Avoid round numbers unless the relevance is extremely clear
+- Higher score = more relevant
+- 0.0 = completely irrelevant
+- 1.0 = fully relevant and sufficient
 
 Question:
 {question}
 
-Context:
+Retrieved Context:
 {context}
-
-Answer:
-{answer}
 
 Return ONLY valid JSON:
 {{
@@ -112,20 +103,20 @@ Return ONLY valid JSON:
 }}
 """.strip()
 
+
 # =====================================================
 # ✅ REQUIRED BY EVALUATOR REGISTRY
 # =====================================================
 
-def hallucination_llm(trace: dict) -> dict:
+def context_relevance_llm(trace: dict) -> dict:
     """
-    Per-trace hallucination evaluator.
+    Per-trace context relevance evaluator.
     Called by EvaluatorRunner inside Azure Functions.
     """
 
     prompt = build_prompt(
         trace.get("question", ""),
         trace.get("context", ""),
-        trace.get("answer", "")
     )
 
     try:
@@ -139,18 +130,13 @@ def hallucination_llm(trace: dict) -> dict:
 
         result = json.loads(cleaned)
 
-        raw_score = float(result["score"])
-
-        # Invert so higher = better (less hallucination)
-        final_score = round(1.0 - raw_score, 4)
-
         return {
-            "score": final_score,
+            "score": float(result["score"]),
             "explanation": result.get("explanation", "")
         }
 
     except Exception as e:
         return {
             "score": None,
-            "explanation": f"Hallucination evaluation failed: {str(e)}"
+            "explanation": f"Context relevance evaluation failed: {str(e)}"
         }

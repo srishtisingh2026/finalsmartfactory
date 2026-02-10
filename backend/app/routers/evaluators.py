@@ -2,8 +2,8 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from azure.cosmos.exceptions import CosmosResourceExistsError
 
-from utils.cosmos import evaluators_container
-from azure_functions.utils.audit import audit_log
+from backend.shared.cosmos import evaluators_container
+from backend.shared.audit import audit_log
 
 router = APIRouter()
 

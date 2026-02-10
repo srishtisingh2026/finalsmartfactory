@@ -2,7 +2,7 @@ import math
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query
 
-from utils.cosmos import evaluations_container
+from backend.shared.cosmos import evaluations_container
 
 router = APIRouter()
 

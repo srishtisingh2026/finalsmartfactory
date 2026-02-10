@@ -2,24 +2,23 @@ import os
 import json
 import requests
 from datetime import datetime, timezone
-from dotenv import load_dotenv
-from pathlib import Path
+
+# 🔐 Key Vault (shared across App Service & Functions)
+from shared.secrets import get_secret
+
 
 # =====================================================
-# Load environment variables
+# Azure OpenAI configuration (from Key Vault)
 # =====================================================
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
-ENV_PATH = ROOT_DIR / ".env"
-load_dotenv(ENV_PATH)
+AZURE_KEY = get_secret("AZURE-OPENAI-KEY")
+AZURE_ENDPOINT = get_secret("AZURE-OPENAI-ENDPOINT").rstrip("/") + "/"
+AZURE_DEPLOYMENT = get_secret("AZURE-OPENAI-DEPLOYMENT")
+AZURE_API_VERSION = get_secret("AZURE-OPENAI-API-VERSION")
 
-AZURE_KEY = os.getenv("AZURE_OPENAI_KEY")
-AZURE_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT", "").rstrip("/") + "/"
-AZURE_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini")
-AZURE_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01")
+if not AZURE_ENDPOINT.startswith("https://"):
+    raise RuntimeError("❌ AZURE_OPENAI_ENDPOINT looks incorrect")
 
-if not AZURE_KEY:
-    raise RuntimeError("❌ Missing AZURE_OPENAI_KEY in .env")
 
 # =====================================================
 # Azure OpenAI Chat Completion
@@ -67,6 +66,7 @@ def call_azure_llm(prompt: str) -> str:
 
     return choices[0]["message"]["content"]
 
+
 # =====================================================
 # Prompt Builder (CONTINUOUS SCORING)
 # =====================================================
@@ -109,6 +109,7 @@ Return ONLY valid JSON:
 }}
 """.strip()
 
+
 # =====================================================
 # ✅ REQUIRED BY EVALUATOR REGISTRY
 # =====================================================
@@ -138,7 +139,7 @@ def conciseness_llm(trace: dict) -> dict:
 
         result = json.loads(cleaned)
 
-        # Score already follows higher = better
+        # Higher score = better (already correct)
         final_score = round(float(result["score"]), 4)
 
         return {

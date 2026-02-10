@@ -3,7 +3,7 @@ from collections import defaultdict
 from fastapi import APIRouter, HTTPException
 
 # 🚀 Import the shared containers from utils.cosmos
-from utils.cosmos import traces_container
+from backend.shared.cosmos import traces_container
 
 router = APIRouter()
 

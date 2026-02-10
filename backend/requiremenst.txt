@@ -1,5 +1,0 @@
-fastapi
-uvicorn
-gunicorn
-azure-identity
-azure-keyvault-secrets

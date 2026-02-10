@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import uuid
 import logging
-from utils.cosmos import audit_container
+from shared.cosmos import audit_container
 
 def audit_log(action: str, type: str, user: str, details: str):
     try:
