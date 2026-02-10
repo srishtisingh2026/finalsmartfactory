@@ -2,9 +2,11 @@ import math
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.shared.cosmos import evaluations_container
+# ✅ Correct shared import (Key Vault handled inside shared.cosmos)
+from shared.cosmos import evaluations_container_read as evaluations_container
 
 router = APIRouter()
+
 
 # -----------------------------
 # Helpers

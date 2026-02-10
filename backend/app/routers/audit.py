@@ -1,5 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
-from backend.shared.cosmos import audit_container_read
+
+# ✅ Correct shared import (Key Vault already handled there)
+from shared.cosmos import audit_container_read
 
 router = APIRouter(prefix="/audit", tags=["Audit"])
 

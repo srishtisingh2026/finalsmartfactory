@@ -2,10 +2,11 @@ import math
 from collections import defaultdict
 from fastapi import APIRouter, HTTPException
 
-# 🚀 Import the shared containers from utils.cosmos
-from backend.shared.cosmos import traces_container
+# ✅ Correct shared import (read-only container)
+from shared.cosmos import traces_container_read as traces_container
 
 router = APIRouter()
+
 
 # -----------------------------
 # Helpers
@@ -22,6 +23,7 @@ def scrub(obj):
         return [scrub(i) for i in obj]
     return obj
 
+
 # -----------------------------
 # Routes
 # -----------------------------
@@ -29,25 +31,27 @@ def scrub(obj):
 @router.get("")
 def list_sessions():
     try:
-        # 🔥 Query ALL traces
+        # 🔥 Query ALL traces (read-only)
         traces = list(
             traces_container.query_items(
                 query="SELECT * FROM c",
-                enable_cross_partition_query=True
+                enable_cross_partition_query=True,
             )
         )
 
         if not traces:
             return []
 
-        sessions = defaultdict(lambda: {
-            "session_id": None,
-            "user_id": "unknown",
-            "trace_count": 0,
-            "total_tokens": 0,
-            "total_cost": 0.0,
-            "created": None
-        })
+        sessions = defaultdict(
+            lambda: {
+                "session_id": None,
+                "user_id": "unknown",
+                "trace_count": 0,
+                "total_tokens": 0,
+                "total_cost": 0.0,
+                "created": None,
+            }
+        )
 
         for t in traces:
             session_id = t.get("session_id")
@@ -74,12 +78,12 @@ def list_sessions():
 @router.get("/{session_id}")
 def get_session(session_id: str):
     try:
-        # 🔥 Query all traces of a specific session
+        # 🔥 Query all traces of a specific session (read-only)
         traces = list(
             traces_container.query_items(
                 query="SELECT * FROM c WHERE c.session_id=@sid",
                 parameters=[{"name": "@sid", "value": session_id}],
-                enable_cross_partition_query=True
+                enable_cross_partition_query=True,
             )
         )
 
@@ -95,7 +99,7 @@ def get_session(session_id: str):
             "created": min(
                 t["timestamp"] for t in traces if t.get("timestamp")
             ),
-            "traces": traces
+            "traces": traces,
         }
 
         return scrub(session)

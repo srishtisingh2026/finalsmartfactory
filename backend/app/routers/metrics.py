@@ -1,8 +1,8 @@
 import math
 from fastapi import APIRouter, HTTPException
 
-# 🚀 Import shared Cosmos container
-from backend.shared.cosmos import metrics_container
+# ✅ Correct shared import (Key Vault handled internally)
+from shared.cosmos import metrics_container_read as metrics_container
 
 router = APIRouter()
 

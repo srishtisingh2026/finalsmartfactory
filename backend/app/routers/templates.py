@@ -4,8 +4,12 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from azure.cosmos.exceptions import CosmosResourceExistsError
 
-from backend.shared.cosmos import templates_container
-from backend.shared.audit import audit_log   # 👈 ADD THIS
+# ✅ Correct shared imports (Key Vault handled internally)
+from shared.cosmos import (
+    templates_container,          # WRITE
+    templates_container_read,     # READ
+)
+from shared.audit import audit_log
 
 router = APIRouter()
 
@@ -34,7 +38,7 @@ def make_template_id(name: str) -> str:
 def get_templates():
     try:
         items = list(
-            templates_container.query_items(
+            templates_container_read.query_items(
                 query="SELECT * FROM c",
                 enable_cross_partition_query=True,
             )
@@ -68,7 +72,7 @@ def get_templates():
 def get_template(template_id: str):
     try:
         items = list(
-            templates_container.query_items(
+            templates_container_read.query_items(
                 query="SELECT * FROM c WHERE c.template_id=@id",
                 parameters=[{"name": "@id", "value": template_id}],
                 enable_cross_partition_query=True,
@@ -117,7 +121,7 @@ def create_template(payload: dict):
             "updated_at": datetime.utcnow().isoformat(),
         }
 
-        # ✅ CREATE TEMPLATE
+        # ✅ CREATE TEMPLATE (WRITE container)
         templates_container.create_item(doc)
 
         # ✅ AUDIT LOG (AFTER SUCCESS)
@@ -125,7 +129,7 @@ def create_template(payload: dict):
             action="Template Created",
             type="template",
             user="system",  # replace later with real user
-            details=f"Created template '{name}' (v{doc['version']})"
+            details=f"Created template '{name}' (v{doc['version']})",
         )
 
         return {"status": "ok", "template": scrub(doc)}

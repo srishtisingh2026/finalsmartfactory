@@ -2,9 +2,11 @@ import math
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.shared.cosmos import traces_container
+# ✅ Correct shared import (read-only container)
+from shared.cosmos import traces_container_read as traces_container
 
 router = APIRouter()
+
 
 # -----------------------------
 # Helpers

@@ -2,8 +2,9 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from azure.cosmos.exceptions import CosmosResourceExistsError
 
-from backend.shared.cosmos import evaluators_container
-from backend.shared.audit import audit_log
+# ✅ Correct shared imports (Key Vault handled internally)
+from shared.cosmos import evaluators_container
+from shared.audit import audit_log
 
 router = APIRouter()
 
@@ -36,7 +37,7 @@ def create_evaluator(payload: dict):
         template = payload.get("template")
         target = payload.get("target", "trace")
 
-        # 🔥 **status defaults to active**
+        # 🔥 status defaults to active
         status = payload.get("status", "active")
 
         if status not in {"active", "inactive"}:
@@ -56,15 +57,15 @@ def create_evaluator(payload: dict):
             "score_name": name,
             "template": template,
             "target": target,
-            "status": status,   # 🔥 only active/inactive
+            "status": status,
             "execution": execution,
             "created_at": datetime.utcnow().isoformat(),
         }
 
-        # Save evaluator
+        # Save evaluator (WRITE container)
         evaluators_container.create_item(doc)
 
-        # Audit
+        # Audit (shared, safe, non-blocking)
         audit_log(
             action="Evaluator Created",
             type="evaluator",
@@ -85,4 +86,3 @@ def create_evaluator(payload: dict):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
