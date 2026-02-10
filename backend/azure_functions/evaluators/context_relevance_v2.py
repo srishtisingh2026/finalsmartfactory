@@ -4,9 +4,9 @@ import requests
 from dotenv import load_dotenv
 from pathlib import Path
 
-# -----------------------------------
+# =====================================================
 # Load environment variables
-# -----------------------------------
+# =====================================================
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 ENV_PATH = ROOT_DIR / ".env"
@@ -20,14 +20,11 @@ AZURE_API_VERSION = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-01")
 if not AZURE_KEY:
     raise RuntimeError("❌ Missing AZURE_OPENAI_KEY in environment")
 
-# -----------------------------------
+# =====================================================
 # Azure OpenAI Chat Completions Call
-# -----------------------------------
+# =====================================================
 
 def call_azure_llm(prompt: str) -> str:
-    """
-    Calls Azure OpenAI Chat Completions API
-    """
     url = (
         f"{AZURE_ENDPOINT}"
         f"openai/deployments/{AZURE_DEPLOYMENT}/chat/completions"
@@ -54,17 +51,31 @@ def call_azure_llm(prompt: str) -> str:
         "temperature": 0
     }
 
-    response = requests.post(url, headers=headers, json=payload)
+    response = requests.post(
+        url,
+        headers=headers,
+        json=payload,
+        timeout=30
+    )
     response.raise_for_status()
 
     data = response.json()
-    return data["choices"][0]["message"]["content"]
+    choices = data.get("choices", [])
+    if not choices:
+        raise ValueError("No choices returned from Azure OpenAI")
 
-# -----------------------------------
+    return choices[0]["message"]["content"]
+
+# =====================================================
 # Prompt Template
-# -----------------------------------
+# =====================================================
+
+MAX_CONTEXT_CHARS = 4000
 
 def build_prompt(question: str, context: str) -> str:
+    question = (question or "").strip()
+    context = (context or "")[:MAX_CONTEXT_CHARS]
+
     return f"""
 Evaluate the Context Relevance of the retrieved RAG context.
 
@@ -72,9 +83,9 @@ Definition:
 Context Relevance = how well the retrieved context helps answer the question.
 
 Scoring:
-0.0 = completely irrelevant  
-0.5 = partially relevant  
-1.0 = fully relevant and sufficient  
+0.0 = completely irrelevant
+0.5 = partially relevant
+1.0 = fully relevant and sufficient
 
 Question:
 {question}
@@ -90,7 +101,7 @@ Return ONLY valid JSON:
 """.strip()
 
 # =====================================================
-# ✅ REQUIRED BY EVALUATOR REGISTRY (PRODUCTION ONLY)
+# ✅ REQUIRED BY EVALUATOR REGISTRY
 # =====================================================
 
 def context_relevance_llm(trace: dict) -> dict:
@@ -109,15 +120,15 @@ def context_relevance_llm(trace: dict) -> dict:
 
         cleaned = (
             llm_output.replace("```json", "")
-                      .replace("```", "")
-                      .strip()
+            .replace("```", "")
+            .strip()
         )
 
         result = json.loads(cleaned)
 
         return {
             "score": float(result["score"]),
-            "explanation": result["explanation"]
+            "explanation": result.get("explanation", "")
         }
 
     except Exception as e:

@@ -1,13 +1,12 @@
 import os
 import json
-import random
 import requests
 from dotenv import load_dotenv
 from pathlib import Path
 
-# -----------------------------------
+# =====================================================
 # Load environment variables
-# -----------------------------------
+# =====================================================
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 ENV_PATH = ROOT_DIR / ".env"
@@ -24,23 +23,9 @@ if not AZURE_KEY:
 if not AZURE_ENDPOINT.startswith("https://"):
     raise RuntimeError("❌ AZURE_OPENAI_ENDPOINT looks incorrect")
 
-# -----------------------------------
-# Optional Noise Injection (KEEPED BY DESIGN)
-# -----------------------------------
-
-def add_noise(score: float, amount: float = 0.15) -> float:
-    """
-    Adds light variation to score so values don't cluster at 0 or 1.
-    """
-    if score is None:
-        return None
-
-    noise = random.uniform(-amount, amount)
-    return round(max(0.0, min(1.0, score + noise)), 3)
-
-# -----------------------------------
+# =====================================================
 # Azure OpenAI Chat API Call
-# -----------------------------------
+# =====================================================
 
 def call_azure_llm(prompt: str) -> str:
     url = (
@@ -69,22 +54,43 @@ def call_azure_llm(prompt: str) -> str:
         "temperature": 0
     }
 
-    response = requests.post(url, headers=headers, json=payload)
+    response = requests.post(
+        url,
+        headers=headers,
+        json=payload,
+        timeout=30
+    )
     response.raise_for_status()
 
     data = response.json()
-    return data["choices"][0]["message"]["content"]
+    choices = data.get("choices", [])
+    if not choices:
+        raise ValueError("No choices returned from Azure OpenAI")
 
-# -----------------------------------
+    return choices[0]["message"]["content"]
+
+# =====================================================
 # Prompt Template
-# -----------------------------------
+# =====================================================
+
+MAX_CONTEXT_CHARS = 4000
+MAX_ANSWER_CHARS = 2000
 
 def build_prompt(question: str, context: str, answer: str) -> str:
+    question = (question or "").strip()
+    context = (context or "")[:MAX_CONTEXT_CHARS]
+    answer = (answer or "")[:MAX_ANSWER_CHARS]
+
     return f"""
 Evaluate the hallucination of the following answer.
 
 Definition:
 Hallucination = information NOT supported by the context.
+
+Scoring:
+0.0 = no hallucination
+0.5 = partially hallucinated
+1.0 = heavily hallucinated
 
 Question:
 {question}
@@ -103,7 +109,7 @@ Return ONLY valid JSON:
 """.strip()
 
 # =====================================================
-# ✅ REQUIRED BY EVALUATOR REGISTRY (PRODUCTION ONLY)
+# ✅ REQUIRED BY EVALUATOR REGISTRY
 # =====================================================
 
 def hallucination_llm(trace: dict) -> dict:
@@ -123,18 +129,20 @@ def hallucination_llm(trace: dict) -> dict:
 
         cleaned = (
             llm_output.replace("```json", "")
-                      .replace("```", "")
-                      .strip()
+            .replace("```", "")
+            .strip()
         )
 
         result = json.loads(cleaned)
 
         raw_score = float(result["score"])
-        score = add_noise(raw_score)
+
+        # IMPORTANT: invert so higher = better (consistent platform-wide)
+        final_score = round(1.0 - raw_score, 4)
 
         return {
-            "score": score,
-            "explanation": result["explanation"]
+            "score": final_score,
+            "explanation": result.get("explanation", "")
         }
 
     except Exception as e:
