@@ -1,11 +1,20 @@
-# backend/evaluators/registry.py
+from Templates.engine import run_evaluator
 
-from .hallucination_v2 import hallucination_llm
-from .context_relevance_v2 import context_relevance_llm
-from .conciseness_v2 import conciseness_llm
+# ----------------------------------------------------
+# REGISTRY OF EVALUATOR FUNCTIONS (DYNAMIC)
+# ----------------------------------------------------
+# Each function now receives:
+#   - evaluator_id (e.g., "conciseness-v1")
+#   - vars (normalized trace)
+#
+# registry_key = f"{score_name}_llm"
+# Example: "conciseness_llm"
+# ----------------------------------------------------
 
 EVALUATORS = {
-    "hallucination_llm": hallucination_llm,
-    "context_relevance_llm": context_relevance_llm,
-    "conciseness_llm": conciseness_llm,
+    "conciseness_llm": lambda evaluator_id, vars: run_evaluator(evaluator_id, vars),
+
+    "hallucination_llm": lambda evaluator_id, vars: run_evaluator(evaluator_id, vars),
+
+    "context_relevance_llm": lambda evaluator_id, vars: run_evaluator(evaluator_id, vars),
 }

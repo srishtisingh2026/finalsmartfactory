@@ -1,11 +1,10 @@
 """
 Centralized Cosmos DB access layer.
 
-✔ Used by Azure Functions
-✔ Used by App Service (FastAPI)
+✔ Shared by Azure Functions + FastAPI (App Service)
 ✔ Secrets loaded from Azure Key Vault via Managed Identity
-✔ Read / Write separation supported
-✔ No env vars, no .env, no duplication
+✔ Read/Write separation
+✔ No env vars or duplication
 """
 
 from azure.cosmos import CosmosClient
@@ -16,7 +15,7 @@ from shared.secrets import get_secret
 # Cosmos Configuration
 # =====================================================
 
-COSMOS_DB = "llmops-data"  # not secret, keep static
+COSMOS_DB = "llmops-data"  # static db name
 
 COSMOS_CONN_READ = get_secret("COSMOS-CONN-READ")
 COSMOS_CONN_WRITE = get_secret("COSMOS-CONN-WRITE")
@@ -26,42 +25,41 @@ COSMOS_CONN_WRITE = get_secret("COSMOS-CONN-WRITE")
 # Cosmos Clients
 # =====================================================
 
-_client_read = CosmosClient.from_connection_string(
-    COSMOS_CONN_READ
-)
-
-_client_write = CosmosClient.from_connection_string(
-    COSMOS_CONN_WRITE
-)
+_client_read = CosmosClient.from_connection_string(COSMOS_CONN_READ)
+_client_write = CosmosClient.from_connection_string(COSMOS_CONN_WRITE)
 
 
 # =====================================================
 # Database Clients
 # =====================================================
 
-_db_read = _client_read.get_database_client(COSMOS_DB)
-_db_write = _client_write.get_database_client(COSMOS_DB)
+DB_READ = _client_read.get_database_client(COSMOS_DB)
+DB_WRITE = _client_write.get_database_client(COSMOS_DB)
 
 
 # =====================================================
-# Container Clients (READ)
+# READ Containers
 # =====================================================
 
-traces_container_read = _db_read.get_container_client("traces")
-evaluations_container_read = _db_read.get_container_client("evaluations")
-metrics_container_read = _db_read.get_container_client("metrics")
-templates_container_read = _db_read.get_container_client("templates")
-evaluators_container_read = _db_read.get_container_client("evaluators")
-audit_container_read = _db_read.get_container_client("audit_logs")
+traces_read = DB_READ.get_container_client("traces")
+evaluations_read = DB_READ.get_container_client("evaluations")
+metrics_read = DB_READ.get_container_client("metrics")
+templates_read = DB_READ.get_container_client("templates")
+evaluators_read = DB_READ.get_container_client("evaluators")
+audit_logs_read = DB_READ.get_container_client("audit_logs")
 
 
 # =====================================================
-# Container Clients (WRITE)
+# WRITE Containers
 # =====================================================
 
-traces_container = _db_write.get_container_client("traces")
-evaluations_container = _db_write.get_container_client("evaluations")
-metrics_container = _db_write.get_container_client("metrics")
-templates_container = _db_write.get_container_client("templates")
-evaluators_container = _db_write.get_container_client("evaluators")
-audit_container = _db_write.get_container_client("audit_logs")
+traces_write = DB_WRITE.get_container_client("traces")
+evaluations_write = DB_WRITE.get_container_client("evaluations")
+metrics_write = DB_WRITE.get_container_client("metrics")
+templates_write = DB_WRITE.get_container_client("templates")
+evaluators_write = DB_WRITE.get_container_client("evaluators")
+audit_logs_write = DB_WRITE.get_container_client("audit_logs")  # <-- FIX ADDED
+
+
+# Alias for audit module compatibility
+audit_container = audit_logs_write
