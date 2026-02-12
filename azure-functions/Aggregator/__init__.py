@@ -15,9 +15,7 @@ def main(mytimer):
     # ==========================================
     COSMOS_CONN_WRITE = get_secret("COSMOS-CONN-WRITE")
 
-    cosmos = CosmosClient.from_connection_string(
-        COSMOS_CONN_WRITE
-    )
+    cosmos = CosmosClient.from_connection_string(COSMOS_CONN_WRITE)
     db = cosmos.get_database_client("llmops-data")
 
     traces_container = db.get_container_client("traces")
@@ -47,9 +45,27 @@ def main(mytimer):
         )
     )
 
+    # ==========================================
+    # 2B. Build eval lookup safely
+    # ==========================================
     evals_by_trace = defaultdict(dict)
+
     for e in evaluations:
-        evals_by_trace[e["trace_id"]][e["evaluator_name"]] = e.get("score")
+        trace_id = e.get("trace_id")
+        if not trace_id:
+            continue
+
+        # evaluator_name fix 👉 prefer evaluator_id, fallback to evaluator
+        evaluator_name = (
+            e.get("evaluator_id")
+            or e.get("evaluator")
+        )
+
+        if not evaluator_name:
+            # skip malformed evaluation docs
+            continue
+
+        evals_by_trace[trace_id][evaluator_name] = e.get("score")
 
     # ==========================================
     # 3. Build Sessions
@@ -115,18 +131,18 @@ def main(mytimer):
     eval_count = defaultdict(int)
 
     for scores in evals_by_trace.values():
-        for name, score in scores.items():
+        for evaluator_name, score in scores.items():
             if score is not None:
-                eval_score_sum[name] += score
-                eval_count[name] += 1
+                eval_score_sum[evaluator_name] += score
+                eval_count[evaluator_name] += 1
 
     evaluation_summary = {}
-    for name in eval_count:
-        count = eval_count[name]
+    for evaluator_name in eval_count:
+        count = eval_count[evaluator_name]
         if count > 0:
-            evaluation_summary[name] = {
+            evaluation_summary[evaluator_name] = {
                 "count": count,
-                "avg_score": round(eval_score_sum[name] / count, 3)
+                "avg_score": round(eval_score_sum[evaluator_name] / count, 3)
             }
 
     # ==========================================

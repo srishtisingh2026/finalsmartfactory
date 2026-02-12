@@ -2,15 +2,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # --------------------------------------------------
-# Correct absolute imports
+# Correct absolute imports (AFTER app import)
 # --------------------------------------------------
-from app.routers.traces import router as traces_router
-from app.routers.evaluations import router as evaluations_router
-from app.routers.evaluators import router as evaluators_router
-from app.routers.templates import router as templates_router
-from app.routers.sessions import router as sessions_router
-from app.routers.metrics import router as metrics_router
-from app.routers.audit import router as audit_router
+from routers.traces import router as traces_router
+from routers.evaluations import router as evaluations_router
+from routers.evaluators import router as evaluators_router
+from routers.templates import router as templates_router
+from routers.sessions import router as sessions_router
+from routers.metrics import router as metrics_router
+from routers.audit import router as audit_router
 
 # --------------------------------------------------
 # App initialization
@@ -48,3 +48,12 @@ app.include_router(audit_router)
 @app.get("/")
 def root():
     return {"message": "Smart Factory AI Backend Running!"}
+
+
+# --------------------------------------------------
+# Uvicorn entry for local debugging
+# (IMPORTANT: put this at the BOTTOM)
+# --------------------------------------------------
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

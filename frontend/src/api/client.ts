@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -34,28 +34,24 @@ export interface Session {
 }
 
 export interface Evaluator {
-  evaluator_id: string;
-  name: string;
-  active: boolean; // active
-  template_id: string; // template
+  id: string;
   score_name: string;
+  template: { id: string;[key: string]: any };
   target: string;
-  sampling: number;
+  status: string;
+  execution?: { sampling_rate?: number;[key: string]: any };
   created_at: string;
 }
 
 export interface Template {
   template_id: string;
-  name: string; // Changed from template_name
-  template_name?: string; // Optional legacy field
+  name: string;
   description: string;
-  template: string; // This key is "template" in JSON
+  template: string;
   model: string;
-  inputs: string[]; // Changed from input_variables
-  input_variables?: string[]; // Optional legacy field
+  inputs: string[];
   version: string;
-  updated_at: string; // Changed from last_updated
-  last_updated?: string; // Optional legacy field
+  updated_at: string;
 }
 
 export interface EvaluationLog {
@@ -63,6 +59,6 @@ export interface EvaluationLog {
   evaluator_name: string;
   trace_id: string;
   score: number;
-  duration: number;
+  duration_ms: number;
   status: string;
 }

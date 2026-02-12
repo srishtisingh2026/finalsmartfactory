@@ -1,17 +1,22 @@
-import React from "react";
 import { Plus } from "lucide-react";
+import { type Template } from "../api/client";
 
-const TemplatesList = ({ templates, onNewTemplate }) => {
+interface TemplatesListProps {
+  templates: Template[];
+  onNewTemplate: () => void;
+}
+
+const TemplatesList: React.FC<TemplatesListProps> = ({ templates, onNewTemplate }) => {
   return (
     <div className="flex flex-col w-full gap-6 mt-4">
-      
+
       {/* Header Row */}
       <div className="flex justify-between items-center mb-2">
         <h2 className="text-xl font-bold">Evaluator Templates</h2>
 
         <button
-        onClick={onNewTemplate}
-        className="
+          onClick={onNewTemplate}
+          className="
             flex items-center gap-2 px-4 py-2 
             rounded-lg font-bold text-white
             bg-[#1c212e] border border-gray-700
@@ -20,8 +25,8 @@ const TemplatesList = ({ templates, onNewTemplate }) => {
             hover:bg-[#13bba4] hover:text-black hover:border-transparent
         "
         >
-        <Plus size={16} />
-        New Template
+          <Plus size={16} />
+          New Template
         </button>
 
       </div>
@@ -37,7 +42,7 @@ const TemplatesList = ({ templates, onNewTemplate }) => {
             key={t.template_id}
             className="bg-[#161a23] border border-gray-800 rounded-2xl p-6"
           >
-            
+
             {/* Header */}
             <div className="flex justify-between items-start mb-4">
               <div>

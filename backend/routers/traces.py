@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query
 
 # ✅ Correct shared import (read-only container)
-from shared.cosmos import traces_container_read as traces_container
+from shared.cosmos import traces_read as traces_container
 
 router = APIRouter()
 

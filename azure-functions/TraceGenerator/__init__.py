@@ -1,4 +1,5 @@
 import os
+
 import random
 from datetime import datetime, timezone
 from azure.cosmos import CosmosClient, exceptions

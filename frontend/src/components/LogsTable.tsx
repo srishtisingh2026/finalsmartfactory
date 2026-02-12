@@ -2,7 +2,23 @@ import React from "react";
 import LogsFilters from "./LogsFilters";
 import { ExternalLink } from "lucide-react";
 
-const LogsTable = ({
+import { type EvaluationLog } from "../api/client";
+
+interface LogsTableProps {
+  logs: EvaluationLog[];
+  filteredLogs: EvaluationLog[];
+  filterEvaluator: string;
+  setFilterEvaluator: (val: string) => void;
+  filterStatus: string;
+  setFilterStatus: (val: string) => void;
+  showEvaluatorDropdown: boolean;
+  setShowEvaluatorDropdown: (val: boolean) => void;
+  showStatusDropdown: boolean;
+  setShowStatusDropdown: (val: boolean) => void;
+  handleViewTrace: (traceId: string) => void;
+}
+
+const LogsTable: React.FC<LogsTableProps> = ({
   logs,
   filteredLogs,
   filterEvaluator,
@@ -96,13 +112,12 @@ const LogsTable = ({
 
                   <td className="px-8 py-6">
                     <span
-                      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${
-                        statusStr === "completed"
+                      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${statusStr === "completed"
                           ? "bg-green-500/10 text-green-500 border-green-500/20"
                           : statusStr === "timeout"
-                          ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
-                          : "bg-red-500/10 text-red-500 border-red-500/20"
-                      }`}
+                            ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                            : "bg-red-500/10 text-red-500 border-red-500/20"
+                        }`}
                     >
                       {log.status || "Unknown"}
                     </span>

@@ -1,7 +1,13 @@
-import React from "react";
 import { Activity, Loader2, X } from "lucide-react";
+import { type Trace } from "../api/client";
 
-const TraceModal = ({
+interface TraceModalProps {
+  selectedTrace: Trace | null;
+  loadingTrace: boolean;
+  onClose: () => void;
+}
+
+const TraceModal: React.FC<TraceModalProps> = ({
   selectedTrace,
   loadingTrace,
   onClose
@@ -96,22 +102,22 @@ const TraceModal = ({
 
               {(selectedTrace.context ||
                 selectedTrace.retrieval_context) && (
-                <div>
-                  <label className="text-[10px] uppercase text-gray-500 font-black">
-                    Retrieval Context
-                  </label>
-                  <div className="mt-2 bg-[#0e1117] border border-gray-800 rounded-xl p-4 text-xs text-gray-400 whitespace-pre-wrap">
-                    {typeof selectedTrace.context === "string"
-                      ? selectedTrace.context
-                      : JSON.stringify(
+                  <div>
+                    <label className="text-[10px] uppercase text-gray-500 font-black">
+                      Retrieval Context
+                    </label>
+                    <div className="mt-2 bg-[#0e1117] border border-gray-800 rounded-xl p-4 text-xs text-gray-400 whitespace-pre-wrap">
+                      {typeof selectedTrace.context === "string"
+                        ? selectedTrace.context
+                        : JSON.stringify(
                           selectedTrace.context ||
-                            selectedTrace.retrieval_context,
+                          selectedTrace.retrieval_context,
                           null,
                           2
                         )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
             </>
           ) : null}
         </div>

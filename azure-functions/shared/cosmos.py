@@ -1,10 +1,10 @@
 """
 Centralized Cosmos DB access layer.
 
-✔ Shared by Azure Functions + FastAPI
+✔ Shared by Azure Functions + FastAPI (App Service)
 ✔ Secrets loaded from Azure Key Vault via Managed Identity
 ✔ Read/Write separation
-✔ Backward-compatible container exports
+✔ No env vars or duplication
 """
 
 from azure.cosmos import CosmosClient
@@ -12,10 +12,10 @@ from shared.secrets import get_secret
 
 
 # =====================================================
-# Configuration
+# Cosmos Configuration
 # =====================================================
 
-COSMOS_DB = "llmops-data"
+COSMOS_DB = "llmops-data"  # static db name
 
 print("DEBUG: Fetching Cosmos DB connection strings...")
 COSMOS_CONN_READ = get_secret("COSMOS-CONN-READ")
@@ -24,7 +24,7 @@ print("DEBUG: Successfully fetched Cosmos DB connection strings")
 
 
 # =====================================================
-# Clients
+# Cosmos Clients
 # =====================================================
 
 print("DEBUG: Initializing Cosmos Clients...")
@@ -32,6 +32,10 @@ _client_read = CosmosClient.from_connection_string(COSMOS_CONN_READ)
 _client_write = CosmosClient.from_connection_string(COSMOS_CONN_WRITE)
 print("DEBUG: Initialized Cosmos Clients")
 
+
+# =====================================================
+# Database Clients
+# =====================================================
 
 DB_READ = _client_read.get_database_client(COSMOS_DB)
 DB_WRITE = _client_write.get_database_client(COSMOS_DB)
@@ -58,33 +62,8 @@ evaluations_write = DB_WRITE.get_container_client("evaluations")
 metrics_write = DB_WRITE.get_container_client("metrics")
 templates_write = DB_WRITE.get_container_client("templates")
 evaluators_write = DB_WRITE.get_container_client("evaluators")
-audit_logs_write = DB_WRITE.get_container_client("audit_logs")
+audit_logs_write = DB_WRITE.get_container_client("audit_logs")  # <-- FIX ADDED
 
 
-# =====================================================
-# 🔥 ROUTER COMPATIBILITY EXPORTS
-# =====================================================
-
-# TRACES
-traces_container_read = traces_read
-traces_container_write = traces_write
-
-# TEMPLATES
-templates_container_read = templates_read
-templates_container = templates_write  # used for create/update
-
-# METRICS
-metrics_container_read = metrics_read
-metrics_container = metrics_write
-
-# EVALUATORS
-evaluators_container_read = evaluators_read
-evaluators_container = evaluators_write
-
-# EVALUATIONS
-evaluations_container_read = evaluations_read
-evaluations_container = evaluations_write
-
-# AUDIT
-audit_container_read = audit_logs_read
+# Alias for audit module compatibility
 audit_container = audit_logs_write

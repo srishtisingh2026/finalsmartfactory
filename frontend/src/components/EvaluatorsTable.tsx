@@ -1,6 +1,10 @@
-import React from "react";
+import { type Evaluator } from "../api/client";
 
-const EvaluatorsTable = ({ evaluators }) => {
+interface EvaluatorsTableProps {
+  evaluators: Evaluator[] | { evaluators: Evaluator[] };
+}
+
+const EvaluatorsTable: React.FC<EvaluatorsTableProps> = ({ evaluators }) => {
   // --------------------------------------------------
   // Normalize input shape
   // Supports:
@@ -66,11 +70,10 @@ const EvaluatorsTable = ({ evaluators }) => {
               return (
                 <tr
                   key={ev.id || i}
-                  className={`hover:bg-[#1c212e]/50 ${
-                    i !== rows.length - 1
+                  className={`hover:bg-[#1c212e]/50 ${i !== rows.length - 1
                       ? "border-b border-gray-800/40"
                       : ""
-                  }`}
+                    }`}
                 >
                   {/* Name */}
                   <td className="px-8 py-6 font-bold text-sm text-gray-200">

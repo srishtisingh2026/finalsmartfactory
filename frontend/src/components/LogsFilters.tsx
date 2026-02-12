@@ -1,7 +1,19 @@
-import React from "react";
 import { ChevronDown, Check } from "lucide-react";
+import { type EvaluationLog } from "../api/client";
 
-const LogsFilters = ({
+interface LogsFiltersProps {
+  logs: EvaluationLog[];
+  filterEvaluator: string;
+  setFilterEvaluator: (val: string) => void;
+  filterStatus: string;
+  setFilterStatus: (val: string) => void;
+  showEvaluatorDropdown: boolean;
+  setShowEvaluatorDropdown: (val: boolean) => void;
+  showStatusDropdown: boolean;
+  setShowStatusDropdown: (val: boolean) => void;
+}
+
+const LogsFilters: React.FC<LogsFiltersProps> = ({
   logs,
   filterEvaluator,
   setFilterEvaluator,
@@ -48,10 +60,9 @@ const LogsFilters = ({
                     setShowEvaluatorDropdown(false);
                   }}
                   className={`w-full flex items-center gap-2 text-left px-4 py-2 text-sm rounded-lg
-                    ${
-                      isSelected
-                        ? "bg-[#13bba4] text-black font-bold"
-                        : "text-gray-800 hover:bg-gray-200"
+                    ${isSelected
+                      ? "bg-[#13bba4] text-black font-bold"
+                      : "text-gray-800 hover:bg-gray-200"
                     }
                   `}
                 >
@@ -90,10 +101,9 @@ const LogsFilters = ({
                     setShowStatusDropdown(false);
                   }}
                   className={`w-full flex items-center gap-2 text-left px-4 py-2 text-sm rounded-lg
-                    ${
-                      isSelected
-                        ? "bg-[#13bba4] text-black font-bold"
-                        : "text-gray-800 hover:bg-gray-200"
+                    ${isSelected
+                      ? "bg-[#13bba4] text-black font-bold"
+                      : "text-gray-800 hover:bg-gray-200"
                     }
                   `}
                 >

@@ -91,7 +91,7 @@ export default function Sessions() {
                   </td>
 
                   <td className="px-6 py-4 text-sm text-[#e0e0e0] font-medium">
-                    {formatDate(s.created)}
+                    {formatDate(s.created_at)}
                   </td>
                 </tr>
               ))}

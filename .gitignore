@@ -2,8 +2,7 @@
 __pycache__/
 *.pyc
 
-# Env
-.env
+
 
 # Azure ZIP builds
 *.zip
@@ -18,3 +17,5 @@ build/
 
 # Editor
 .vscode/
+backend/.env
+.env
