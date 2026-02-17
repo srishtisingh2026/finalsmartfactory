@@ -46,7 +46,7 @@ DATA = [
         "Valve shutdown requires isolating upstream and downstream flow and relieving pressure.",
         "Valve shutdown requires isolating upstream and downstream flow and carefully relieving pressure.",
         "Valve shutdown requires isolating flow paths and gradually relieving pressure to safely reach a zero-energy state.",
-        "Valve shutdown requires isolating upstream and downstream flow, gradually relieving internal pressure, verifying isolation points, and ensuring safety procedures are followed to prevent pressure shock."
+        "Valve shutdown requires isolating upstream and downstream flow, gradually relieving internal pressure, verifying isolation points, and ensuring safety procedures are followed to prevent pressure shock.Valve shutdown requires isolating upstream and downstream flow and relieving pressure."
     ]
 },
 
@@ -60,7 +60,7 @@ DATA = [
         "Circuit breakers trip due to overloads or thermal fatigue.",
         "Breakers trip repeatedly because of overloads, short circuits, or moisture-related leakage.",
         "Repeated breaker tripping often indicates overload conditions, insulation degradation, or environmental moisture affecting leakage currents.",
-        "Circuit breakers may trip repeatedly due to overloads, thermal fatigue, humidity-related leakage currents, or protective mechanisms reacting to prolonged abnormal operating conditions."
+        "Circuit breakers may trip repeatedly due to overloads, thermal fatigue, humidity-related leakage currents, or protective mechanisms reacting to prolonged abnormal operating conditions.Circuit breakers trip due to overloads or thermal fatigue."
     ]
 },
 
@@ -188,7 +188,7 @@ DATA = [
         "Emergency shutdowns trigger due to sensor or wiring faults.",
         "Unexpected shutdowns often result from faulty limit switches or sensors.",
         "Emergency shutdowns may trigger unexpectedly because of sensor faults or wiring insulation issues.",
-        "Unexpected emergency shutdowns can occur due to faulty limit switches, vibration sensor false positives, or wiring insulation breakdown."
+        "Unexpected emergency shutdowns can occur due to faulty limit switches, vibration sensor false positives, or wiring insulation breakdown.Emergency shutdowns trigger due to sensor or wiring faults."
     ]
 },
 
@@ -202,7 +202,7 @@ DATA = [
         "Safety interlocks are tested by simulating faults.",
         "Interlocks are tested by simulating fault conditions and observing responses.",
         "Safety interlocks are validated by simulating fault conditions and checking actuator response times.",
-        "Testing safety interlocks involves simulating fault scenarios and verifying that actuators respond correctly within certified time limits."
+        "Testing safety interlocks involves simulating fault scenarios and verifying that actuators respond correctly within certified time limits.Interlocks are tested by simulating fault conditions and observing responses"
     ]
 },
 
@@ -262,7 +262,7 @@ DATA = [
         "Bearings fail due to contamination or lubrication issues.",
         "Premature bearing failure often results from misalignment or contamination.",
         "Bearing failure occurs due to contamination, misalignment, or improper lubrication.",
-        "Premature bearing failure can result from contamination, misalignment, improper lubrication, or excessive loading conditions."
+        "Premature bearing failure can result from contamination, misalignment, improper lubrication, or excessive loading conditions.Bearings fail due to contamination or lubrication issues."
     ]
 },
 

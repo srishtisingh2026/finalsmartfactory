@@ -8,7 +8,7 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from services.prompts import prompt_service
 
-router = APIRouter(prefix="/api/v1", tags=["prompts"])
+router = APIRouter(tags=["prompts"])
 
 
 class PromptCreateRequest(BaseModel):

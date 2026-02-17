@@ -49,7 +49,7 @@ const CreatePrompt = () => {
 
         setIsLoading(true);
         try {
-            const res = await api.post('/api/v1/prompts', {
+            const res = await api.post('/prompts', {
                 name,
                 description,
                 content,
