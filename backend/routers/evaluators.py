@@ -38,7 +38,6 @@ def create_evaluator(payload: dict):
         status = payload.get("status", "active")
         execution = payload.get("execution", {})
 
-        # 🔥 ADD THIS (new)
         variable_mapping = payload.get("variable_mapping", {})
 
         # ---------------------------

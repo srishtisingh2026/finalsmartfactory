@@ -87,7 +87,7 @@ export default function Traces() {
                   </td>
 
                   <td className="px-3 py-2 text-gray-300">
-                    {t.tokens}
+                    {(t.tokens ?? 0).toFixed(3)}
                   </td>
 
                   <td className="px-3 py-2 text-gray-300">

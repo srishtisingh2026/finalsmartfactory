@@ -28,7 +28,7 @@ export interface Trace {
   cost: number;
   model?: string;
 
-  scores?: Record<string, number>; // ✅ THIS is important
+  scores?: Record<string, number>; 
 
   [key: string]: any;
 }
