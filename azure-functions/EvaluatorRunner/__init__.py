@@ -8,19 +8,21 @@ from azure.cosmos import exceptions
 
 from shared.audit import audit_log
 from shared.cosmos import evaluators_read, evaluations_write
-from Templates.engine import run_evaluator   # 🔥 direct dynamic call
+from Templates.engine import run_evaluator
 
 
 # --------------------------------------------------
 # Normalize trace for evaluator templates
 # --------------------------------------------------
 def normalize_trace(trace: dict) -> dict:
+    retrieved = trace.get("retrieved_context", [])
+    context_text = "\n\n".join(retrieved) if isinstance(retrieved, list) else ""
+
     return {
-        "input": trace.get("input") or trace.get("question", ""),
-        "context": trace.get("context", ""),
-        "response": trace.get("output") or trace.get("answer", ""),
-        "output": trace.get("output") or trace.get("answer", ""),
-        "_raw": trace
+        "input": trace.get("input_text", ""),
+        "context": context_text,
+        "response": trace.get("output_text", ""),
+        "_raw": trace,
     }
 
 
@@ -62,6 +64,7 @@ def main(documents: DocumentList):
         evaluator_id = ev.get("id")
         evaluator_name = ev.get("score_name")
         template_id = ev.get("template", {}).get("id")
+        exec_cfg = ev.get("execution", {})
 
         if not evaluator_id or not template_id:
             logging.warning(f"[EvaluatorRunner] Invalid evaluator config: {ev}")
@@ -70,7 +73,14 @@ def main(documents: DocumentList):
         logging.info(f"[EvaluatorRunner] Running evaluator '{evaluator_id}'")
 
         executed_count = 0
-        exec_cfg = ev.get("execution", {})
+
+        # 🔥 NEW: deployment-based ensemble
+        deployments = exec_cfg.get(
+            "ensemble_deployments",
+            ["gpt-4o-mini"]  # fallback default
+        )
+
+        variance_threshold = exec_cfg.get("variance_threshold", 0.10)
 
         # --------------------------------------------------
         # Iterate traces
@@ -105,32 +115,100 @@ def main(documents: DocumentList):
                 continue
 
             # --------------------------------------------------
-            # Run evaluator dynamically
+            # Run ENSEMBLE (deployment-based)
             # --------------------------------------------------
             start_time = time.time()
+
+            scores = {}
+            classifications = {}
+            raw_outputs = {}
 
             try:
                 normalized = normalize_trace(trace)
 
-                result = run_evaluator(evaluator_id, normalized)
+                for deployment in deployments:
+                    result = run_evaluator(
+                        evaluator_id,
+                        normalized,
+                        deployment=deployment
+                    )
 
-                score = result.get("score")
-                raw_output = result.get("raw_output")
-                classification = result.get("classification")
+                    score = result.get("score")
+                    classification = result.get("classification")
+                    raw_output = result.get("raw_output")
 
-                if isinstance(score, (int, float)):
-                    score = round(float(score), 2)
+                    if isinstance(score, (int, float)):
+                        scores[deployment] = round(float(score), 2)
 
-                # 🔥 Status now reflects engine result
-                status = "completed" if classification != "failed" else "failed"
+                    if classification:
+                        classifications[deployment] = classification
+
+                    raw_outputs[deployment] = raw_output
+
+                # -------------------------------
+                # Aggregate score
+                # -------------------------------
+                score_values = list(scores.values())
+                final_score = None
+                variance = None
+
+                if score_values:
+                    final_score = round(
+                        sum(score_values) / len(score_values), 2
+                    )
+
+                    if len(score_values) > 1:
+                        mean = final_score
+                        variance = round(
+                            sum((s - mean) ** 2 for s in score_values)
+                            / len(score_values),
+                            4,
+                        )
+
+                # -------------------------------
+                # Aggregate classification
+                # -------------------------------
+                class_values = list(classifications.values())
+
+                if not class_values:
+                    final_classification = None
+                    agreement = None
+
+                elif len(set(class_values)) == 1:
+                    final_classification = class_values[0]
+                    agreement = 1.0
+
+                else:
+                    final_classification = "disagreement"
+                    agreement = round(
+                        max(
+                            class_values.count(c)
+                            for c in set(class_values)
+                        )
+                        / len(class_values),
+                        2,
+                    )
+
+                # -------------------------------
+                # Stability check
+                # -------------------------------
+                unstable = (
+                    variance is not None
+                    and variance > variance_threshold
+                )
+
+                status = "unstable" if unstable else "completed"
 
             except Exception as e:
                 logging.exception(
                     f"[EvaluatorRunner] Evaluator '{evaluator_id}' failed for trace {trace_id}"
                 )
-                score = None
-                raw_output = str(e)
-                classification = "failed"
+                final_score = None
+                variance = None
+                agreement = None
+                final_classification = "failed"
+                raw_outputs = {"error": str(e)}
+                unstable = False
                 status = "failed"
 
             duration_ms = int((time.time() - start_time) * 1000)
@@ -144,9 +222,21 @@ def main(documents: DocumentList):
                 "evaluator": evaluator_name,
                 "evaluator_id": evaluator_id,
                 "template_id": template_id,
-                "score": score,
-                "classification": classification,
-                "raw_output": raw_output,
+
+                # 🔥 Deployment ensemble fields
+                "deployments_used": deployments,
+                "individual_scores": scores,
+                "individual_classifications": classifications,
+                "ensemble_score": final_score,
+                "variance": variance,
+                "agreement": agreement,
+                "unstable": unstable,
+
+                # Backward compatibility
+                "score": final_score,
+                "classification": final_classification,
+                "raw_output": raw_outputs,
+
                 "status": status,
                 "duration_ms": duration_ms,
                 "timestamp": datetime.now(timezone.utc).isoformat(),

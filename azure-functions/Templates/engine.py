@@ -1,5 +1,6 @@
 import logging
 import re
+from typing import Optional
 from jinja2 import Template
 
 from shared.cosmos import DB_READ
@@ -55,36 +56,64 @@ def render_prompt(template_str: str, variables: dict) -> str:
 # ----------------------------------------------------
 # Extract Numeric Score
 # ----------------------------------------------------
-def parse_numeric_score(raw: str) -> float:
+def parse_numeric_score(raw: Optional[str]) -> Optional[float]:
     try:
-        match = re.search(r"\d+(\.\d+)?", raw)
+        if not raw:
+            return None
+
+        # 1️⃣ Try "Score: X"
+        match = re.search(r"score[:\s]+(\d+(?:\.\d+)?)", raw, re.IGNORECASE)
         if match:
-            return float(match.group())
+            return float(match.group(1))
+
+        # 2️⃣ Fallback: first number found
+        matches = re.findall(r"\d+(?:\.\d+)?", raw)
+        if matches:
+            return float(matches[0])
+
         return None
+
     except Exception:
         return None
 
 
 # ----------------------------------------------------
-# Main Evaluator Execution
+# Main Evaluator Execution (UPDATED)
 # ----------------------------------------------------
-def run_evaluator(evaluator_id: str, variables: dict) -> dict:
+def run_evaluator(
+    evaluator_id: str,
+    variables: dict,
+    deployment: Optional[str] = None  # 🔥 NEW
+) -> dict:
     """
     Fully dynamic evaluator runner.
+
+    If deployment is provided:
+        → It overrides template model.
+    Otherwise:
+        → Template model is used.
     """
+
+    logging.info(f"[engine] Starting run_evaluator for {evaluator_id}")
 
     # 1️⃣ Load evaluator
     evaluator_doc = fetch_evaluator(evaluator_id)
     template_id = evaluator_doc["template"]["id"]
 
+    # Optional model override from evaluator config
     model_override = evaluator_doc.get("template", {}).get("model")
 
     # 2️⃣ Load template
     template_doc = fetch_template(template_id)
 
-    model = model_override or template_doc["model"]
+    template_model = template_doc.get("model")
     prompt_template = template_doc["template"]
     required_inputs = template_doc.get("inputs", [])
+
+    # 🔥 Determine final model (deployment wins)
+    model = deployment or model_override or template_model
+
+    logging.info(f"[engine] Using model/deployment: {model}")
 
     # 3️⃣ Build template variables
     template_variables = {}
@@ -100,8 +129,21 @@ def run_evaluator(evaluator_id: str, variables: dict) -> dict:
     # 4️⃣ Render prompt
     final_prompt = render_prompt(prompt_template, template_variables)
 
-    # 5️⃣ Call LLM
-    raw_output = call_llm(model=model, prompt=final_prompt)
+    # 5️⃣ Call LLM (deployment-aware)
+    raw_output = call_llm(
+        model=model,  # 🔥 This is deployment name now
+        prompt=final_prompt
+    )
+
+    if not raw_output:
+        return {
+            "evaluator_id": evaluator_id,
+            "template_id": template_id,
+            "model_used": model,
+            "score": None,
+            "classification": "failed",
+            "raw_output": "Empty response"
+        }
 
     # 6️⃣ Parse score
     score = parse_numeric_score(raw_output)

@@ -21,19 +21,20 @@ client = AzureOpenAI(
 
 
 # ----------------------------------------------------
-# Generic LLM Call (Safe + Cost Efficient)
+# Generic LLM Call (Deployment-Aware + Retry Safe)
 # ----------------------------------------------------
 
 def call_llm(
-    model: str,
+    model: str,  # 🔥 This is deployment name (e.g., "gpt-4o", "gpt-4o-mini")
     prompt: str,
-    max_tokens: int = 5,
+    max_tokens: int = 200,
     temperature: float = 0.0,
     timeout: int = 30,
     max_retries: int = 2
 ) -> Optional[str]:
     """
-    Calls Azure OpenAI safely.
+    Calls Azure OpenAI safely using deployment name.
+
     Designed for evaluator usage (deterministic numeric output).
 
     Returns:
@@ -45,28 +46,42 @@ def call_llm(
 
     while attempt <= max_retries:
         try:
+            start_time = time.time()
+
             response = client.chat.completions.create(
-                model=model,
+                model=model,  # 🔥 Deployment name
                 temperature=temperature,
                 max_tokens=max_tokens,
                 messages=[
-                    {"role": "system", "content": "You are a deterministic scoring engine."},
+                    {
+                        "role": "system",
+                        "content": "You are a deterministic scoring engine. Always return strict JSON."
+                    },
                     {"role": "user", "content": prompt}
                 ],
                 timeout=timeout
             )
 
+            latency_ms = int((time.time() - start_time) * 1000)
+
             content = response.choices[0].message.content
 
             if not content:
-                logging.error("[llm] Empty response from model")
+                logging.error(f"[llm:{model}] Empty response")
                 return None
+
+            logging.info(
+                f"[llm:{model}] Success | "
+                f"Latency={latency_ms}ms | "
+                f"PromptTokens={response.usage.prompt_tokens} | "
+                f"CompletionTokens={response.usage.completion_tokens}"
+            )
 
             return content.strip()
 
         except Exception as e:
             logging.warning(
-                f"[llm] Attempt {attempt + 1} failed: {e}"
+                f"[llm:{model}] Attempt {attempt + 1} failed: {e}"
             )
 
             attempt += 1
@@ -74,8 +89,8 @@ def call_llm(
             # Exponential backoff
             if attempt <= max_retries:
                 sleep_time = 2 ** attempt
-                logging.info(f"[llm] Retrying in {sleep_time}s...")
+                logging.info(f"[llm:{model}] Retrying in {sleep_time}s...")
                 time.sleep(sleep_time)
             else:
-                logging.exception("[llm] All retries failed.")
+                logging.exception(f"[llm:{model}] All retries failed.")
                 return None

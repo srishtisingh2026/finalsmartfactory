@@ -3,15 +3,13 @@ from datetime import datetime, timezone
 from collections import defaultdict
 
 from azure.cosmos import CosmosClient
-
-# 🔐 Key Vault (shared across App Service & Functions)
 from shared.secrets import get_secret
 
 
 def main(mytimer):
 
     # ==========================================
-    # Connect to Cosmos DB (via Key Vault)
+    # Connect to Cosmos DB
     # ==========================================
     COSMOS_CONN_WRITE = get_secret("COSMOS-CONN-WRITE")
 
@@ -46,7 +44,7 @@ def main(mytimer):
     )
 
     # ==========================================
-    # 2B. Build eval lookup safely
+    # 3. Build Evaluation Lookup
     # ==========================================
     evals_by_trace = defaultdict(dict)
 
@@ -55,37 +53,35 @@ def main(mytimer):
         if not trace_id:
             continue
 
-        # evaluator_name fix 👉 prefer evaluator_id, fallback to evaluator
-        evaluator_name = (
-            e.get("evaluator_id")
-            or e.get("evaluator")
-        )
-
+        evaluator_name = e.get("evaluator_id") or e.get("evaluator")
         if not evaluator_name:
-            # skip malformed evaluation docs
             continue
 
         evals_by_trace[trace_id][evaluator_name] = e.get("score")
 
     # ==========================================
-    # 3. Build Sessions
+    # 4. Session Aggregation
     # ==========================================
     sessions = {}
-    for t in sorted(traces, key=lambda x: x.get("timestamp", "")):
-        sid = t.get("session_id")
+
+    for t in sorted(traces, key=lambda x: x.get("request", {}).get("timestamp", 0)):
+
+        session_obj = t.get("session", {})
+        sid = session_obj.get("session_id")
+
         if not sid:
             continue
 
         if sid not in sessions:
             sessions[sid] = {
                 "session_id": sid,
-                "user_id": t.get("user_id"),
+                "user_id": session_obj.get("user_id"),
                 "first_trace_id": t.get("trace_id"),
-                "session_start_time": t.get("timestamp"),
+                "session_start_time": t.get("request", {}).get("timestamp"),
             }
 
     # ==========================================
-    # 4. Trace Metrics
+    # 5. Trace Metrics
     # ==========================================
     total_traces = len(traces)
     total_users = set()
@@ -103,29 +99,37 @@ def main(mytimer):
     tokens_by_trace_name = defaultdict(int)
 
     for t in traces:
-        tokens = t.get("tokens", 0)
-        cost = t.get("cost", 0.0)
-        latency = t.get("latency_ms", 0)
+
+        usage = t.get("usage", {})
+        cost_obj = t.get("cost", {})
+        performance = t.get("performance", {})
+        model_info = t.get("model_info", {})
+        session_obj = t.get("session", {})
+
+        tokens = usage.get("total_tokens", 0)
+        cost = cost_obj.get("total_cost_usd", 0.0)
+        latency = performance.get("latency_ms", 0)
 
         total_tokens += tokens
         total_cost += cost
         total_latency += latency
 
-        model = t.get("model", "unknown")
+        model = model_info.get("model", "unknown")
         tokens_by_model[model] += tokens
         cost_by_model[model] += cost
         trace_count_by_model[model] += 1
 
-        name = t.get("trace_name", "unknown")
-        trace_count_by_name[name] += 1
-        cost_by_trace_name[name] += cost
-        tokens_by_trace_name[name] += tokens
+        trace_name = t.get("trace_name", "unknown")
+        trace_count_by_name[trace_name] += 1
+        cost_by_trace_name[trace_name] += cost
+        tokens_by_trace_name[trace_name] += tokens
 
-        if t.get("user_id"):
-            total_users.add(t["user_id"])
+        user_id = session_obj.get("user_id")
+        if user_id:
+            total_users.add(user_id)
 
     # ==========================================
-    # 5. Evaluation Summary
+    # 6. Evaluation Summary
     # ==========================================
     eval_score_sum = defaultdict(float)
     eval_count = defaultdict(int)
@@ -137,6 +141,7 @@ def main(mytimer):
                 eval_count[evaluator_name] += 1
 
     evaluation_summary = {}
+
     for evaluator_name in eval_count:
         count = eval_count[evaluator_name]
         if count > 0:
@@ -146,7 +151,7 @@ def main(mytimer):
             }
 
     # ==========================================
-    # 6. Final KPI Snapshot
+    # 7. Final KPI Snapshot
     # ==========================================
     metrics = {
         "id": "metrics_snapshot",
@@ -180,6 +185,6 @@ def main(mytimer):
     }
 
     # ==========================================
-    # 7. Save Metrics
+    # 8. Save Metrics
     # ==========================================
     metrics_container.upsert_item(metrics)

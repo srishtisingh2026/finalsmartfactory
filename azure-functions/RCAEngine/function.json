@@ -1,0 +1,15 @@
+{
+  "bindings": [
+    {
+      "type": "cosmosDBTrigger",
+      "name": "docs",
+      "direction": "in",
+      "connection": "COSMOS_CONN_TRIGGER",
+      "databaseName": "llmops-data",
+      "containerName": "evaluations",
+      "leaseContainerName": "leases-rca",
+      "createLeaseContainerIfNotExists": true
+    }
+  ]
+}
+

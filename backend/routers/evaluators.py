@@ -27,7 +27,7 @@ def get_evaluators():
 
 
 # ---------------------------------------------------------
-# CREATE EVALUATOR
+# CREATE EVALUATOR (WITH enable_ensemble FLAG)
 # ---------------------------------------------------------
 @router.post("")
 def create_evaluator(payload: dict):
@@ -36,8 +36,7 @@ def create_evaluator(payload: dict):
         template = payload.get("template")
         target = payload.get("target", "trace")
         status = payload.get("status", "active")
-        execution = payload.get("execution", {})
-
+        execution = payload.get("execution", {}) or {}
         variable_mapping = payload.get("variable_mapping", {})
 
         # ---------------------------
@@ -64,6 +63,44 @@ def create_evaluator(payload: dict):
             raise HTTPException(400, "template.id is required")
 
         # ---------------------------
+        # Normalize Execution Block
+        # ---------------------------
+        sampling_rate = float(execution.get("sampling_rate", 1.0))
+        variance_threshold = float(execution.get("variance_threshold", 0.1))
+
+        # 🔥 NEW: enable_ensemble flag
+        enable_ensemble = bool(payload.get("enable_ensemble", False))
+
+        # If frontend explicitly provides deployments → use them
+        if "ensemble_deployments" in execution:
+            ensemble_deployments = execution.get("ensemble_deployments")
+
+            if not isinstance(ensemble_deployments, list):
+                raise HTTPException(
+                    400,
+                    "ensemble_deployments must be a list"
+                )
+
+            if len(ensemble_deployments) == 0:
+                raise HTTPException(
+                    400,
+                    "ensemble_deployments cannot be empty"
+                )
+
+        else:
+            # Auto-decide based on enable_ensemble flag
+            if enable_ensemble:
+                ensemble_deployments = ["gpt-4o", "gpt-4o-mini"]
+            else:
+                ensemble_deployments = ["gpt-4o-mini"]
+
+        normalized_execution = {
+            "sampling_rate": sampling_rate,
+            "variance_threshold": variance_threshold,
+            "ensemble_deployments": ensemble_deployments,
+        }
+
+        # ---------------------------
         # Versioned ID
         # ---------------------------
         evaluator_id = payload.get("id") or f"{score_name}-v1"
@@ -78,12 +115,10 @@ def create_evaluator(payload: dict):
             "template": template,
             "target": target,
             "status": status,
-
-            # 🔥 SAVE VARIABLE MAPPING (FIX)
             "variable_mapping": variable_mapping,
-
-            "execution": execution,
+            "execution": normalized_execution,
             "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat(),
         }
 
         evaluators_container.create_item(doc)
