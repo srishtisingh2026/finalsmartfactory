@@ -6,8 +6,14 @@ interface Session {
   user_id: string;
   trace_count: number;
   total_tokens: number;
-  total_cost: number;
-  created: string;
+  total_cost_usd: number;
+  total_cost_micro_usd: number;
+
+  created?: string;
+  session_start?: string;
+  session_end?: string;
+
+  session_duration_ms?: number;
 }
 
 export default function Sessions() {
@@ -15,7 +21,8 @@ export default function Sessions() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get("/sessions")
+    api
+      .get("/sessions")
       .then((res) => {
         setSessions(res.data);
       })
@@ -35,6 +42,12 @@ export default function Sessions() {
       second: "2-digit",
       hour12: false,
     });
+  };
+
+  const formatDuration = (ms?: number) => {
+    if (!ms) return "-";
+    const mins = ms / 60000;
+    return `${mins.toFixed(2)} min`;
   };
 
   if (loading) {
@@ -72,6 +85,7 @@ export default function Sessions() {
                 <th className="px-6 py-4 text-center">Traces</th>
                 <th className="px-6 py-4 text-center">Total Tokens</th>
                 <th className="px-6 py-4 text-center">Total Cost</th>
+                <th className="px-6 py-4 text-center">Duration</th>
                 <th className="px-6 py-4">Created</th>
               </tr>
             </thead>
@@ -106,12 +120,17 @@ export default function Sessions() {
 
                   {/* Total Cost */}
                   <td className="px-6 py-4 text-sm text-[#e0e0e0] text-center font-bold">
-                    ${(s.total_cost ?? 0).toFixed(6)}
+                    ¢{(s.total_cost_micro_usd ?? 0).toFixed(2)}
+                  </td>
+
+                  {/* NEW → Duration */}
+                  <td className="px-6 py-4 text-sm text-[#e0e0e0] text-center font-bold">
+                    {formatDuration(s.session_duration_ms)}
                   </td>
 
                   {/* Created Timestamp */}
                   <td className="px-6 py-4 text-sm text-[#e0e0e0] font-medium">
-                    {formatDate(s.created)}
+                    {formatDate(s.session_start)}
                   </td>
                 </tr>
               ))}

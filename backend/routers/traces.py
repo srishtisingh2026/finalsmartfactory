@@ -80,6 +80,7 @@ def normalize_trace(t: dict) -> dict:
 
         # Retrieval
         "retrieval": t.get("retrieval"),
+        "spans": t.get("spans", []),
     }
 
 

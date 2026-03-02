@@ -1,4 +1,4 @@
-import { Activity, Loader2, X } from "lucide-react";
+import { Activity, Loader2 } from "lucide-react";
 import { type Trace } from "../api/client";
 
 interface TraceModalProps {
@@ -27,13 +27,6 @@ const TraceModal: React.FC<TraceModalProps> = ({
               ID: {selectedTrace?.trace_id || "loading..."}
             </p>
           </div>
-
-          <button
-            onClick={onClose}
-            className="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-800 hover:bg-gray-700"
-          >
-            <X size={20} />
-          </button>
         </div>
 
         {/* Body */}
@@ -71,7 +64,7 @@ const TraceModal: React.FC<TraceModalProps> = ({
                     Estimated Cost
                   </label>
                   <p className="text-lg font-bold text-[#13bba4] mt-1">
-                    ${Number(selectedTrace.cost || 0).toFixed(4)}
+                    ${Number(selectedTrace.total_cost_usd || 0).toFixed(10)}
                   </p>
                 </div>
               </div>

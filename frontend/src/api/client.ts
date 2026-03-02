@@ -11,36 +11,72 @@ export const api = axios.create({
 
 export interface Trace {
   trace_id: string;
+  trace_name: string;
+
   session_id: string;
   user_id?: string;
 
-  trace_name: string;     // ✅ matches backend
   input: string;
   output?: string;
 
   timestamp: string;
 
-  latency_ms: number;
-  tokens: number;
-  tokens_in?: number;
-  tokens_out?: number;
-
-  cost: number;
+  provider?: string;
   model?: string;
+  temperature?: number;
 
-  scores?: Record<string, number>; 
+  latency_ms?: number;
+  status?: string;
+
+  // Usage tokens
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+
+  // Cost fields from backend
+  input_cost_usd?: number;
+  output_cost_usd?: number;
+  total_cost_usd?: number;
+  currency?: string;
+
+  // Retrieval metadata
+  retrieval?: any;
+
+  // Evaluator scores
+  scores?: Record<string, number>;
 
   [key: string]: any;
 }
 
 export interface Session {
   session_id: string;
-  user: string; // Backend sends "user"
-  user_id?: string; // Frontend alias if needed
+
+  user_id?: string;
+  environment?: string;
+
   trace_count: number;
   total_tokens: number;
-  total_cost: number;
-  created_at: string;
+
+  total_cost_usd: number;
+  total_cost_micro_usd: number;
+
+  avg_latency_ms?: number;
+
+  // Raw timestamps from backend
+  created?: number | string;
+  last_activity?: number | string;
+
+  // ISO formatted timestamps
+  session_start?: string;
+  session_end?: string;
+
+  // Duration in milliseconds
+  session_duration_ms?: number;
+
+  // Only available in GET /sessions/{session_id}
+  traces?: any[];
+
+  [key: string]: any;
 }
 
 export interface Evaluator {
@@ -104,4 +140,10 @@ export interface EvaluationLog {
   score?: number | null;
   duration_ms?: number;
   status?: string;
+}
+
+export interface RCAResult {
+  findings: string[];
+  evidence: string[];
+  suggestions: string[];
 }

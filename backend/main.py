@@ -9,7 +9,7 @@ from routers.sessions import router as sessions_router
 from routers.metrics import router as metrics_router
 from routers.audit import router as audit_router
 from routers.prompts import router as prompts_router
-
+from routers.rca import router as rca_router
 app = FastAPI(
     title="Smart Factory AI Backend",
     version="1.0.0",
@@ -33,6 +33,7 @@ app.include_router(sessions_router, prefix="/sessions")
 app.include_router(metrics_router, prefix="/dashboard")
 app.include_router(audit_router)
 app.include_router(prompts_router)
+app.include_router(rca_router, prefix="/rca")
 
 @app.get("/")
 def root():

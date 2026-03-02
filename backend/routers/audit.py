@@ -1,6 +1,4 @@
 from fastapi import APIRouter, HTTPException, Query
-
-# ✅ Correct shared import (Key Vault already handled there)
 from shared.cosmos import audit_container_read
 
 router = APIRouter(prefix="/audit", tags=["Audit"])
@@ -11,9 +9,10 @@ router = APIRouter(prefix="/audit", tags=["Audit"])
 # ---------------------------------------------------------
 @router.get("")
 def get_audit_logs(
-    type: str | None = Query(None, description="Filter by type (evaluator, template)"),
+    type: str | None = Query(None, description="Filter by type (evaluator, template, rca, etc.)"),
     action: str | None = Query(None, description="Filter by action"),
     user: str | None = Query(None, description="Filter by user"),
+    search: str | None = Query(None, description="Search in details"),
     limit: int = Query(200, ge=1, le=1000),
 ):
     try:
@@ -21,6 +20,7 @@ def get_audit_logs(
         filters = []
         params = []
 
+        # ---- Dynamic Filters ----
         if type:
             filters.append("c.type = @type")
             params.append({"name": "@type", "value": type})
@@ -33,9 +33,14 @@ def get_audit_logs(
             filters.append("c.user = @user")
             params.append({"name": "@user", "value": user})
 
+        if search:
+            filters.append("CONTAINS(c.details, @search, true)")
+            params.append({"name": "@search", "value": search})
+
         if filters:
             query += " WHERE " + " AND ".join(filters)
 
+        # ISO timestamps sort correctly lexicographically
         query += " ORDER BY c.timestamp DESC"
 
         items = list(
@@ -46,7 +51,6 @@ def get_audit_logs(
             )
         )
 
-        # Limit after query (Cosmos ORDER BY + LIMIT is costly)
         return items[:limit]
 
     except Exception as e:

@@ -1,10 +1,14 @@
 import { useEffect, useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+
 import { api, type Trace } from "../api/client";
 
 export default function Traces() {
   const [traces, setTraces] = useState<Trace[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const navigate = useNavigate();
+
 
   useEffect(() => {
     api
@@ -66,7 +70,8 @@ export default function Traces() {
               return (
                 <tr
                   key={t.trace_id}
-                  className="border-b border-[#1f242d] hover:bg-[#161a23] transition"
+                  className="border-b border-[#1f242d] hover:bg-[#161a23] transition cursor-pointer"
+                  onClick={() => navigate(`/traces/${t.trace_id}`)}
                 >
                   <td className="px-3 py-2 text-gray-400 whitespace-nowrap">
                     {new Date(t.timestamp).toLocaleString()}
@@ -87,11 +92,11 @@ export default function Traces() {
                   </td>
 
                   <td className="px-3 py-2 text-gray-300">
-                    {(t.tokens ?? 0).toFixed(3)}
+                    {(t.total_tokens ?? 0)}
                   </td>
 
                   <td className="px-3 py-2 text-gray-300">
-                    ${(t.cost ?? 0).toFixed(5)}
+                    ${(t.total_cost_usd ?? 0).toFixed(8)}
                   </td>
 
                   <td className="px-3 py-2">
@@ -100,10 +105,9 @@ export default function Traces() {
                         <span
                           key={k}
                           className={`px-2 py-0.5 rounded-full text-[10px] font-semibold
-                            ${
-                              v < 0.3
-                                ? "bg-[#3a1d16] text-[#ffb29b]"
-                                : v < 0.6
+                            ${v < 0.3
+                              ? "bg-[#3a1d16] text-[#ffb29b]"
+                              : v < 0.6
                                 ? "bg-[#2f1e0a] text-[#fcd34d]"
                                 : "bg-[#0d2a1f] text-[#6ee7b7]"
                             }`}

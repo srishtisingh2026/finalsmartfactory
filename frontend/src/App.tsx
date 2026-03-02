@@ -22,6 +22,8 @@ import CreatePrompt from "./pages/CreatePrompt";
 import CreateTemplate from "./pages/CreateTemplate";
 import CreateEvaluator from "./pages/CreateEvaluator";
 import LoginPage from "./pages/LoginPage";
+import TraceDetails from "./pages/TraceDetails";
+
 
 // Layout
 import Sidebar from "./components/Sidebar";
@@ -59,7 +61,7 @@ function ProtectedLayout() {
 
       {/* Right side → Navbar + Dynamic Page Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        
+
         {/* Top Navbar */}
         <Navbar />
 
@@ -70,6 +72,8 @@ function ProtectedLayout() {
               <Route path="/" element={<Dashboard />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="traces" element={<Traces />} />
+              <Route path="traces/:traceId" element={<TraceDetails />} />
+
               <Route path="sessions" element={<Sessions />} />
               <Route path="evaluators" element={<Evaluators />} />
               <Route path="evaluators/new" element={<CreateEvaluator />} />

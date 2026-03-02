@@ -88,3 +88,14 @@ evaluations_container = evaluations_write
 # AUDIT
 audit_container_read = audit_logs_read
 audit_container = audit_logs_write
+
+# =====================================================
+# RCA RESULTS (NEW)
+# =====================================================
+
+rca_results_read = DB_READ.get_container_client("rca_results")
+rca_results_write = DB_WRITE.get_container_client("rca_results")
+
+# Export for routers
+rca_container_read = rca_results_read
+rca_container_write = rca_results_write
