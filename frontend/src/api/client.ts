@@ -147,3 +147,29 @@ export interface RCAResult {
   evidence: string[];
   suggestions: string[];
 }
+export const updateEvaluatorStatus = async (
+  evaluatorId: string,
+  status: string
+) => {
+
+  const res = await api.post(`/evaluators/${evaluatorId}/status`, {
+    status
+  });
+
+  return res.data;
+
+};
+
+
+export const updateSamplingRate = async (
+  evaluatorId: string,
+  rate: number
+) => {
+
+  const res = await api.post(`/evaluators/${evaluatorId}/sampling`, {
+    sampling_rate: rate
+  });
+
+  return res.data;
+
+};

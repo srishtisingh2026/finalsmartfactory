@@ -2,14 +2,11 @@ import math
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query
 
-# ✅ Correct shared import
 from shared.cosmos import evaluations_read, evaluators_read
 
 router = APIRouter()
 
-# Cache for evaluator names to avoid repeated queries
 _evaluator_cache = {}
-
 
 # -----------------------------
 # Helpers
@@ -25,9 +22,9 @@ def scrub(obj):
 
 
 # -----------------------------
-# NORMALIZATION
+# STATUS SUPPORT
 # -----------------------------
-ALLOWED_STATUS = {"Completed", "Error", "Timeout"}
+ALLOWED_STATUS = {"Completed", "Error", "Timeout", "Skipped", "Unstable"}
 
 
 def parse_timestamp(ts):
@@ -58,57 +55,69 @@ def compute_duration(e: dict):
 
 def normalize_status(e: dict, score):
     raw = e.get("status")
-    if raw in ALLOWED_STATUS:
-        return raw
 
-    if isinstance(raw, str):
-        rl = raw.lower()
-        if "timeout" in rl:
-            return "Timeout"
-        if "error" in rl or "fail" in rl:
-            return "Error"
+    if not raw:
+        return "Completed" if score is not None else "Error"
 
-    return "Completed" if score is not None else "Error"
+    rl = str(raw).lower()
+
+    if rl == "completed":
+        return "Completed"
+
+    if rl == "failed":
+        return "Error"
+
+    if rl == "timeout":
+        return "Timeout"
+
+    if rl == "skipped":
+        return "Skipped"
+
+    if rl == "unstable":
+        return "Unstable"
+
+    return "Error"
 
 
+# -----------------------------
+# Evaluator Name Lookup
+# -----------------------------
 def get_evaluator_name(evaluator_id: str) -> str:
-    """
-    Fetch the human-readable name for an evaluator by its ID.
-    Uses caching to minimize database queries.
-    """
     if not evaluator_id:
         return "Unknown"
-    
-    # Check cache first
+
     if evaluator_id in _evaluator_cache:
         return _evaluator_cache[evaluator_id]
-    
+
     try:
-        # Query the evaluators container
         evaluator = evaluators_read.read_item(
             item=evaluator_id,
             partition_key=evaluator_id
         )
+
         name = evaluator.get("name") or evaluator.get("score_name") or evaluator_id
+
         _evaluator_cache[evaluator_id] = name
         return name
+
     except Exception:
-        # Fallback to evaluator_id if lookup fails
         return evaluator_id
 
 
+# -----------------------------
+# Evaluation Normalization
+# -----------------------------
 def normalize_eval(e: dict) -> dict:
+
     score = e.get("score")
-    
-    # Get evaluator_id from the evaluation record
+
     evaluator_id = e.get("evaluator_id")
-    
-    # Fetch the human-readable name
+
     evaluator_name = get_evaluator_name(evaluator_id)
 
     return {
         "trace_id": e.get("trace_id"),
-        "evaluator_name": evaluator_name,  # Now using the actual name from evaluators table
+        "evaluator_name": evaluator_name,
         "score": score,
         "timestamp": parse_timestamp(
             e.get("timestamp") or e.get("created_at") or e.get("_ts")
@@ -116,6 +125,7 @@ def normalize_eval(e: dict) -> dict:
         "duration_ms": compute_duration(e),
         "status": normalize_status(e, score),
     }
+
 
 # -----------------------------
 # Routes
@@ -126,13 +136,14 @@ def get_all_evaluations(
     trace_id: str | None = Query(None),
     limit: int = Query(200, ge=1, le=1000),
 ):
+
     try:
         query = "SELECT * FROM c"
         parameters = []
         filters = []
 
         if evaluator:
-            filters.append("c.name = @evaluator")
+            filters.append("c.evaluator = @evaluator")
             parameters.append({"name": "@evaluator", "value": evaluator})
 
         if trace_id:
@@ -153,6 +164,7 @@ def get_all_evaluations(
         )
 
         normalized = [normalize_eval(e) for e in raw[:limit]]
+
         return scrub(normalized)
 
     except Exception as e:

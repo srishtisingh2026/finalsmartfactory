@@ -147,3 +147,51 @@ def create_evaluator(payload: dict):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{evaluator_id}/status")
+def update_evaluator_status(evaluator_id: str, payload: dict):
+
+    status = payload.get("status")
+
+    if status not in ["active", "inactive"]:
+        raise HTTPException(400, "Invalid status")
+
+    evaluator = evaluators_container.read_item(
+        item=evaluator_id,
+        partition_key=evaluator_id
+    )
+
+    evaluator["status"] = status
+    evaluator["updated_at"] = datetime.utcnow().isoformat()
+
+    evaluators_container.replace_item(
+        item=evaluator_id,
+        body=evaluator
+    )
+
+    return {"success": True, "status": status}
+@router.post("/{evaluator_id}/sampling")
+def update_sampling_rate(evaluator_id: str, payload: dict):
+
+    sampling_rate = payload.get("sampling_rate")
+
+    if sampling_rate is None or sampling_rate < 0 or sampling_rate > 1:
+        raise HTTPException(400, "Sampling rate must be between 0 and 1")
+
+    evaluator = evaluators_container.read_item(
+        item=evaluator_id,
+        partition_key=evaluator_id
+    )
+
+    if "execution" not in evaluator:
+        evaluator["execution"] = {}
+
+    evaluator["execution"]["sampling_rate"] = sampling_rate
+    evaluator["updated_at"] = datetime.utcnow().isoformat()
+
+    evaluators_container.replace_item(
+        item=evaluator_id,
+        body=evaluator
+    )
+
+    return {"success": True, "sampling_rate": sampling_rate}

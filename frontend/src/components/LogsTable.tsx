@@ -30,6 +30,25 @@ const LogsTable: React.FC<LogsTableProps> = ({
   setShowStatusDropdown,
   handleViewTrace
 }) => {
+
+  const getStatusStyle = (status?: string) => {
+    const s = status?.toLowerCase();
+
+    if (s === "completed")
+      return "bg-green-500/10 text-green-500 border-green-500/20";
+
+    if (s === "unstable")
+      return "bg-orange-500/10 text-orange-400 border-orange-500/20";
+
+    if (s === "skipped")
+      return "bg-gray-500/10 text-gray-400 border-gray-500/20";
+
+    if (s === "failed")
+      return "bg-red-500/10 text-red-500 border-red-500/20";
+
+    return "bg-gray-500/10 text-gray-400 border-gray-500/20";
+  };
+
   return (
     <div className="bg-[#161a23] border border-gray-800 rounded-2xl">
       <div className="p-6 border-b border-gray-800 bg-[#1c212e]/40 flex justify-between items-center">
@@ -73,7 +92,8 @@ const LogsTable: React.FC<LogsTableProps> = ({
 
           <tbody>
             {filteredLogs.map((log, i) => {
-              const statusStr = (log.status ?? "unknown").toLowerCase();
+
+              const status = log.status ?? "unknown";
 
               return (
                 <tr
@@ -116,15 +136,11 @@ const LogsTable: React.FC<LogsTableProps> = ({
                   {/* Status */}
                   <td className="px-8 py-6">
                     <span
-                      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${
-                        statusStr === "completed"
-                          ? "bg-green-500/10 text-green-500 border-green-500/20"
-                          : statusStr === "timeout"
-                          ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
-                          : "bg-red-500/10 text-red-500 border-red-500/20"
-                      }`}
+                      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${getStatusStyle(
+                        status
+                      )}`}
                     >
-                      {log.status ?? "Unknown"}
+                      {status}
                     </span>
                   </td>
 

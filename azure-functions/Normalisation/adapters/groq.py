@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any
 from .base import BaseProviderAdapter
 from ..schema import RetrievalInfo, SpanModel
 from ..utils import clean_text
@@ -13,17 +13,18 @@ class GroqAdapter(BaseProviderAdapter):
 
     def extract_usage(self, raw: Dict[str, Any]):
 
-        # First try span-level usage
+        # Prefer span-level usage
         for span in raw.get("spans", []):
             if span.get("type") == "llm" and span.get("usage"):
                 usage = span["usage"]
+
                 return (
                     int(usage.get("prompt_tokens", 0) or 0),
                     int(usage.get("completion_tokens", 0) or 0),
                     int(usage.get("total_tokens", 0) or 0),
                 )
 
-        # Fallback to provider_raw
+        # fallback provider usage
         usage = raw.get("provider_raw", {}).get("usage", {})
 
         return (
@@ -38,22 +39,29 @@ class GroqAdapter(BaseProviderAdapter):
 
     def extract_retrieval(self, raw: Dict[str, Any]):
 
+        rag = raw.get("rag_data", {}) or {}
+        scores = rag.get("retrieval_scores", {}) or {}
+
+        # root confidence preferred
+        confidence = raw.get("retrieval_confidence")
+
+        if confidence is None:
+            confidence = scores.get("avg_score")
+
         return RetrievalInfo(
             executed=bool(raw.get("retrieval_executed", False)),
             documents_found=int(raw.get("documents_found", 0) or 0),
-            retrieval_confidence=raw.get("retrieval_confidence"),
-            best_score=(raw.get("rag_data") or {}).get("best_score"),
+            retrieval_confidence=confidence,
+            best_score=scores.get("max_score"),  # max distance = best
         )
 
     # ============================================================
     # SPAN NORMALIZATION
     # ============================================================
 
-
     def extract_spans(self, raw):
 
         spans = []
-
         model = raw.get("model")
 
         for span in raw.get("spans", []):
@@ -65,6 +73,7 @@ class GroqAdapter(BaseProviderAdapter):
             total = int(usage.get("total_tokens", 0) or 0)
 
             cost = 0.0
+
             if span.get("type") == "llm":
                 cost = calculate_span_cost(model, prompt, completion)
 
@@ -82,6 +91,7 @@ class GroqAdapter(BaseProviderAdapter):
             )
 
         return spans
+
     # ============================================================
     # RETRIEVED DOCUMENT CONTENT
     # ============================================================
@@ -94,8 +104,11 @@ class GroqAdapter(BaseProviderAdapter):
         docs = rag_data.get("retrieved_documents", [])
 
         for doc in docs:
+
             if isinstance(doc, dict):
+
                 content = doc.get("content") or doc.get("content_preview")
+
                 if content:
                     contexts.append(clean_text(content))
 

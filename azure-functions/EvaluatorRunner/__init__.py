@@ -15,7 +15,9 @@ from Templates.engine import run_evaluator
 # Normalize trace for evaluator templates
 # --------------------------------------------------
 def normalize_trace(trace: dict) -> dict:
-    retrieved = trace.get("retrieved_context", [])
+
+    retrieved = trace.get("retrieved_context", []) or []
+
     context_text = "\n\n".join(retrieved) if isinstance(retrieved, list) else ""
 
     return {
@@ -27,18 +29,10 @@ def normalize_trace(trace: dict) -> dict:
 
 
 # --------------------------------------------------
-# Evaluators that require retrieval context
-# --------------------------------------------------
-RETRIEVAL_REQUIRED_EVALUATORS = {
-    "hallucination",
-    "context_relevance",
-}
-
-
-# --------------------------------------------------
 # Azure Function Entry
 # --------------------------------------------------
 def main(documents: DocumentList):
+
     logging.info("🔥 EvaluatorRunner TRIGGERED 🔥")
 
     if not documents:
@@ -46,11 +40,13 @@ def main(documents: DocumentList):
         return
 
     trace_count = len(documents)
+
     logging.info(f"[EvaluatorRunner] Processing {trace_count} traces")
 
     # --------------------------------------------------
     # Load active evaluators
     # --------------------------------------------------
+
     try:
         evaluators = list(
             evaluators_read.query_items(
@@ -69,11 +65,13 @@ def main(documents: DocumentList):
     # --------------------------------------------------
     # Process each evaluator
     # --------------------------------------------------
+
     for ev in evaluators:
+
         evaluator_id = ev.get("id")
         evaluator_name = ev.get("score_name")
         template_id = ev.get("template", {}).get("id")
-        exec_cfg = ev.get("execution", {})
+        exec_cfg = ev.get("execution", {}) or {}
 
         if not evaluator_id or not template_id:
             logging.warning(f"[EvaluatorRunner] Invalid evaluator config: {ev}")
@@ -90,32 +88,47 @@ def main(documents: DocumentList):
 
         variance_threshold = exec_cfg.get("variance_threshold", 0.10)
 
+        requires_context = exec_cfg.get("requires_context", False)
+
+        sampling_rate = exec_cfg.get("sampling_rate", 1.0)
+
+        delay_ms = exec_cfg.get("delay_ms", 0)
+
         # --------------------------------------------------
         # Iterate traces
         # --------------------------------------------------
+
         for trace in documents:
+
             trace_id = trace.get("trace_id") or trace.get("id")
+
             if not trace_id:
                 continue
 
-            retrieval = trace.get("retrieval", {})
-            retrieved_context = trace.get("retrieved_context", [])
+            retrieval = trace.get("retrieval", {}) or {}
+            retrieved_context = trace.get("retrieved_context", []) or []
 
             eval_id = f"{trace_id}:{evaluator_id}"
 
             # --------------------------------------------------
-            # Skip evaluators requiring retrieval
+            # Dynamic context requirement check
             # --------------------------------------------------
-            if evaluator_name in RETRIEVAL_REQUIRED_EVALUATORS:
-                if not retrieval.get("executed") or not retrieved_context:
+
+            if requires_context:
+
+                retrieval_executed = retrieval.get("executed", False)
+
+                if not retrieval_executed or not retrieved_context:
 
                     logging.info(
-                        f"[EvaluatorRunner] Skipping '{evaluator_name}' for trace {trace_id} (no retrieval context)"
+                        f"[EvaluatorRunner] Skipping '{evaluator_name}' for trace {trace_id} "
+                        f"(requires_context=true but no retrieval context)"
                     )
 
                     skip_doc = {
                         "id": eval_id,
                         "trace_id": trace_id,
+
                         "evaluator": evaluator_name,
                         "evaluator_id": evaluator_id,
                         "template_id": template_id,
@@ -139,24 +152,31 @@ def main(documents: DocumentList):
 
                     continue
 
+            # --------------------------------------------------
             # Sampling
-            sampling_rate = exec_cfg.get("sampling_rate", 1.0)
+            # --------------------------------------------------
+
             if random.random() > sampling_rate:
                 continue
 
+            # --------------------------------------------------
             # Optional delay
-            delay_ms = exec_cfg.get("delay_ms", 0)
+            # --------------------------------------------------
+
             if delay_ms > 0:
                 time.sleep(delay_ms / 1000)
 
             # --------------------------------------------------
             # Idempotency Check
             # --------------------------------------------------
+
             try:
                 evaluations_write.read_item(eval_id, partition_key=trace_id)
                 continue
+
             except exceptions.CosmosResourceNotFoundError:
                 pass
+
             except Exception:
                 logging.exception("[EvaluatorRunner] Idempotency check failed")
                 continue
@@ -164,6 +184,7 @@ def main(documents: DocumentList):
             # --------------------------------------------------
             # Run ENSEMBLE
             # --------------------------------------------------
+
             start_time = time.time()
 
             scores = {}
@@ -173,9 +194,11 @@ def main(documents: DocumentList):
             total_eval_cost = 0.0
 
             try:
+
                 normalized = normalize_trace(trace)
 
                 for deployment in deployments:
+
                     result = run_evaluator(
                         evaluator_id,
                         normalized,
@@ -200,17 +223,23 @@ def main(documents: DocumentList):
                 # -------------------------------
                 # Aggregate score
                 # -------------------------------
+
                 score_values = list(scores.values())
+
                 final_score = None
                 variance = None
 
                 if score_values:
+
                     final_score = round(
-                        sum(score_values) / len(score_values), 2
+                        sum(score_values) / len(score_values),
+                        2
                     )
 
                     if len(score_values) > 1:
+
                         mean = final_score
+
                         variance = round(
                             sum((s - mean) ** 2 for s in score_values)
                             / len(score_values),
@@ -220,18 +249,23 @@ def main(documents: DocumentList):
                 # -------------------------------
                 # Aggregate classification
                 # -------------------------------
+
                 class_values = list(classifications.values())
 
                 if not class_values:
+
                     final_classification = None
                     agreement = None
 
                 elif len(set(class_values)) == 1:
+
                     final_classification = class_values[0]
                     agreement = 1.0
 
                 else:
+
                     final_classification = "disagreement"
+
                     agreement = round(
                         max(
                             class_values.count(c)
@@ -244,6 +278,7 @@ def main(documents: DocumentList):
                 # -------------------------------
                 # Stability check
                 # -------------------------------
+
                 unstable = (
                     variance is not None
                     and variance > variance_threshold
@@ -253,6 +288,7 @@ def main(documents: DocumentList):
                 reason = None
 
             except Exception as e:
+
                 logging.exception(
                     f"[EvaluatorRunner] Evaluator '{evaluator_id}' failed for trace {trace_id}"
                 )
@@ -261,7 +297,9 @@ def main(documents: DocumentList):
                 variance = None
                 agreement = None
                 final_classification = "failed"
+
                 raw_outputs = {"error": str(e)}
+
                 unstable = False
 
                 status = "failed"
@@ -272,7 +310,9 @@ def main(documents: DocumentList):
             # --------------------------------------------------
             # Save evaluation record
             # --------------------------------------------------
+
             doc = {
+
                 "id": eval_id,
                 "trace_id": trace_id,
 
@@ -305,12 +345,14 @@ def main(documents: DocumentList):
             try:
                 evaluations_write.upsert_item(doc)
                 executed_count += 1
+
             except Exception:
                 logging.exception("[EvaluatorRunner] Failed to persist evaluation")
 
         # --------------------------------------------------
         # Audit Log
         # --------------------------------------------------
+
         audit_log(
             action="Evaluator Run Completed",
             type="evaluator",

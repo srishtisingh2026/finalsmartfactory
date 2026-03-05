@@ -27,19 +27,58 @@ class GeminiAdapter(BaseProviderAdapter):
 
     def extract_retrieval(self, raw: Dict[str, Any]):
 
-        for span in raw.get("spans", []):
+        rag = raw.get("rag_data", {}) or {}
+        scores = rag.get("retrieval_scores", {}) or {}
 
-            if span.get("name") == "vector-search" or span.get("type") == "retrieval":
-                docs = span.get("output", {}).get("documents", []) or []
+        confidence = raw.get("retrieval_confidence")
 
-                return RetrievalInfo(
-                    executed=True,
-                    documents_found=len(docs),
-                )
+        # ------------------------------------------------
+        # Ensure confidence is always a float
+        # ------------------------------------------------
+        if isinstance(confidence, dict):
+            confidence = confidence.get("avg_score")
+
+        if confidence is None:
+            confidence = scores.get("avg_score")
+
+        if confidence is not None:
+            confidence = float(confidence)
+
+        # ------------------------------------------------
+        # Documents found
+        # ------------------------------------------------
+        documents_found = raw.get("documents_found")
+
+        if documents_found is None:
+            documents_found = rag.get("documents_found")
+
+        # fallback to span inspection
+        if documents_found is None:
+
+            for span in raw.get("spans", []):
+
+                if span.get("type") == "retrieval" or span.get("name") == "vector-search":
+
+                    docs = span.get("output", {}).get("documents", []) or []
+
+                    documents_found = len(docs)
+                    break
+
+        documents_found = int(documents_found or 0)
+
+        # ------------------------------------------------
+        # Best score (cosine similarity = higher is better)
+        # ------------------------------------------------
+        best_score = scores.get("max_score")
+
+        if best_score is not None:
+            best_score = float(best_score)
 
         return RetrievalInfo(
-            executed=False,
-            documents_found=0,
+            executed=bool(raw.get("retrieval_executed", documents_found > 0)),
+            documents_found=documents_found,
+            retrieval_confidence=confidence,
+            best_score=best_score,
         )
 
     # ============================================================
@@ -56,7 +95,7 @@ class GeminiAdapter(BaseProviderAdapter):
 
             metadata = span.get("metadata", {}) or {}
 
-            # Gemini span tokens live inside metadata
+            # Gemini token usage often stored in metadata
             prompt = int(metadata.get("tokens_in", 0) or 0)
             completion = int(metadata.get("tokens_out", 0) or 0)
             total = prompt + completion
@@ -66,7 +105,6 @@ class GeminiAdapter(BaseProviderAdapter):
 
             latency = int(span.get("latency_ms", 0) or 0)
 
-            # 🔥 Only calculate cost for actual LLM generation spans
             cost = 0.0
             if span_type == "llm":
                 cost = calculate_span_cost(model, prompt, completion)
@@ -94,15 +132,32 @@ class GeminiAdapter(BaseProviderAdapter):
 
         contexts: List[str] = []
 
-        for span in raw.get("spans", []):
+        # Prefer canonical rag_data
+        rag_data = raw.get("rag_data", {}) or {}
 
-            if span.get("name") == "vector-search" or span.get("type") == "retrieval":
+        docs = rag_data.get("retrieved_documents", []) or []
 
-                documents = span.get("output", {}).get("documents", []) or []
+        for doc in docs:
 
-                for doc in documents:
-                    content = doc.get("content")
-                    if content:
-                        contexts.append(clean_text(content))
+            content = doc.get("content") or doc.get("content_preview")
+
+            if content:
+                contexts.append(clean_text(content))
+
+        # fallback to span extraction
+        if not contexts:
+
+            for span in raw.get("spans", []):
+
+                if span.get("type") == "retrieval" or span.get("name") == "vector-search":
+
+                    documents = span.get("output", {}).get("documents", []) or []
+
+                    for doc in documents:
+
+                        content = doc.get("content")
+
+                        if content:
+                            contexts.append(clean_text(content))
 
         return contexts
