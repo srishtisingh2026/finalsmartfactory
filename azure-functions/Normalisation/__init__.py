@@ -23,7 +23,7 @@ def main(documents):
     for raw in documents:
         try:
             canonical = normalize_trace(raw)
-            container.upsert_item(canonical.model_dump())
+            container.upsert_item(canonical.model_dump(exclude_none=True))
             logging.info(f"Normalized trace {canonical.trace_id}")
         except Exception as e:
             logging.error(f"Normalization failed: {str(e)}")

@@ -93,12 +93,12 @@ class GeminiAdapter(BaseProviderAdapter):
 
         for span in raw.get("spans", []):
 
+            usage = span.get("usage", {}) or {}
             metadata = span.get("metadata", {}) or {}
 
-            # Gemini token usage often stored in metadata
-            prompt = int(metadata.get("tokens_in", 0) or 0)
-            completion = int(metadata.get("tokens_out", 0) or 0)
-            total = prompt + completion
+            prompt = int(usage.get("prompt_tokens", 0) or 0)
+            completion = int(usage.get("completion_tokens", 0) or 0)
+            total = int(usage.get("total_tokens", prompt + completion) or 0)
 
             span_type = str(span.get("type", "unknown"))
             span_name = str(span.get("name", "unknown"))
@@ -109,21 +109,32 @@ class GeminiAdapter(BaseProviderAdapter):
             if span_type == "llm":
                 cost = calculate_span_cost(model, prompt, completion)
 
-            normalized_spans.append(
-                SpanModel(
-                    span_id=str(span.get("span_id", "unknown")),
-                    type=span_type,
-                    name=span_name,
-                    latency_ms=latency,
-                    prompt_tokens=prompt,
-                    completion_tokens=completion,
-                    total_tokens=total,
-                    cost_usd=cost,
-                )
+            span_data = dict(
+                span_id=str(span.get("span_id", "unknown")),
+                type=span_type,
+                name=span_name,
+                latency_ms=latency,
+                prompt_tokens=prompt,
+                completion_tokens=completion,
+                total_tokens=total,
+                cost_usd=cost,
             )
 
-        return normalized_spans
+            # Only for LLM spans (same behaviour as Groq)
+            if span_type == "llm":
 
+                temperature = metadata.get("temperature")
+                context_tokens = metadata.get("context_tokens")
+
+                if temperature is not None:
+                    span_data["temperature"] = temperature
+
+                if context_tokens is not None:
+                    span_data["context_tokens"] = context_tokens
+
+            normalized_spans.append(SpanModel(**span_data))
+
+        return normalized_spans
     # ============================================================
     # RETRIEVED DOCUMENT CONTENT
     # ============================================================

@@ -11,7 +11,7 @@ COSMOS = os.environ["COSMOS_CONN_WRITE"]
 client = CosmosClient.from_connection_string(COSMOS)
 
 DB = client.get_database_client("llmops-data")
-RAW = DB.get_container_client("raw_traces")
+RAW = DB.get_container_client("traces")
 EVALS = DB.get_container_client("evaluations")
 RCA = DB.get_container_client("rca_results")
 EVALUATORS = DB.get_container_client("evaluators")  # registry

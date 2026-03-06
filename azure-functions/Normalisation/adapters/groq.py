@@ -71,24 +71,35 @@ class GroqAdapter(BaseProviderAdapter):
             prompt = int(usage.get("prompt_tokens", 0) or 0)
             completion = int(usage.get("completion_tokens", 0) or 0)
             total = int(usage.get("total_tokens", 0) or 0)
+            meta = span.get("metadata", {}) or {}
+
+            temperature = meta.get("temperature")
+            context_tokens = meta.get("context_tokens")
 
             cost = 0.0
 
             if span.get("type") == "llm":
                 cost = calculate_span_cost(model, prompt, completion)
 
-            spans.append(
-                SpanModel(
-                    span_id=str(span.get("span_id", "unknown")),
-                    type=str(span.get("type", "unknown")),
-                    name=str(span.get("name", "unknown")),
-                    latency_ms=int(span.get("latency_ms", 0) or 0),
-                    prompt_tokens=prompt,
-                    completion_tokens=completion,
-                    total_tokens=total,
-                    cost_usd=cost,
-                )
+            span_type = str(span.get("type", "unknown"))
+
+            span_data = dict(
+                span_id=str(span.get("span_id", "unknown")),
+                type=span_type,
+                name=str(span.get("name", "unknown")),
+                latency_ms=int(span.get("latency_ms", 0) or 0),
+                prompt_tokens=prompt,
+                completion_tokens=completion,
+                total_tokens=total,
+                cost_usd=cost,
             )
+
+            # Only attach these for LLM spans
+            if span_type == "llm":
+                span_data["temperature"] = temperature
+                span_data["context_tokens"] = context_tokens
+
+            spans.append(SpanModel(**span_data))
 
         return spans
 

@@ -105,7 +105,6 @@ def normalize_trace(raw: Dict[str, Any]) -> CanonicalTrace:
         model_info=ModelInfo(
             provider=provider,
             model=str(raw.get("model", "unknown")),
-            temperature=raw.get("temperature"),
         ),
 
         performance=PerformanceInfo(

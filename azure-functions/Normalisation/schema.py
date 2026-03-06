@@ -1,67 +1,134 @@
 from enum import Enum
 from typing import Optional, List
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
+
+# =========================================================
+# Base Schema
+# Ensures None fields are excluded automatically
+# =========================================================
+
+class BaseSchema(BaseModel):
+
+    model_config = ConfigDict(
+        extra="ignore",
+        populate_by_name=True,
+        ser_json_exclude_none=True
+    )
+
+
+# =========================================================
+# Status Enum
+# =========================================================
 
 class StatusEnum(str, Enum):
     success = "success"
     failure = "failure"
 
 
-class SessionInfo(BaseModel):
+# =========================================================
+# Session Information
+# =========================================================
+
+class SessionInfo(BaseSchema):
+
     session_id: str
     user_id: str
 
 
-class RequestInfo(BaseModel):
+# =========================================================
+# Request Information
+# =========================================================
+
+class RequestInfo(BaseSchema):
+
     timestamp: int
     environment: str
     intent: Optional[str] = None
 
 
-class ModelInfo(BaseModel):
+# =========================================================
+# Model Information
+# =========================================================
+
+class ModelInfo(BaseSchema):
+
     provider: str
     model: str
-    temperature: Optional[float] = None
 
 
-class PerformanceInfo(BaseModel):
+# =========================================================
+# Performance Metrics
+# =========================================================
+
+class PerformanceInfo(BaseSchema):
+
     latency_ms: int
     status: StatusEnum
 
 
-class UsageInfo(BaseModel):
+# =========================================================
+# Usage Metrics
+# =========================================================
+
+class UsageInfo(BaseSchema):
+
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
 
 
-class CostInfo(BaseModel):
+# =========================================================
+# Cost Metrics
+# =========================================================
+
+class CostInfo(BaseSchema):
+
     input_cost_usd: float = 0.0
     output_cost_usd: float = 0.0
     total_cost_usd: float = 0.0
     currency: str = "USD"
 
 
-class RetrievalInfo(BaseModel):
+# =========================================================
+# Retrieval Metadata
+# =========================================================
+
+class RetrievalInfo(BaseSchema):
+
     executed: bool = False
     documents_found: int = 0
     retrieval_confidence: Optional[float] = None
     best_score: Optional[float] = None
 
 
-class SpanModel(BaseModel):
+# =========================================================
+# Span Model
+# =========================================================
+
+class SpanModel(BaseSchema):
+
     span_id: str
     type: str
     name: str
     latency_ms: int
+
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
-    cost_usd: float = 0.0   # ← ADD THIS
+    cost_usd: float = 0.0
+
+    # Only present for LLM spans
+    temperature: Optional[float] = None
+    context_tokens: Optional[int] = None
 
 
-class CanonicalTrace(BaseModel):
+# =========================================================
+# Canonical Trace
+# =========================================================
+
+class CanonicalTrace(BaseSchema):
+
     id: str
     trace_id: str
     trace_name: str
@@ -77,4 +144,5 @@ class CanonicalTrace(BaseModel):
     usage: UsageInfo
     cost: CostInfo
     retrieval: RetrievalInfo
+
     spans: List[SpanModel]
