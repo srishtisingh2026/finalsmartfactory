@@ -1,7 +1,9 @@
 from typing import Dict, Any, List
+
 from .base import BaseProviderAdapter
 from ..schema import RetrievalInfo, SpanModel
 from ..utils import clean_text
+from ..utils import compute_retrieval_metrics
 from ..pricing import calculate_span_cost
 
 
@@ -22,63 +24,40 @@ class GeminiAdapter(BaseProviderAdapter):
         return prompt, completion, total
 
     # ============================================================
-    # RETRIEVAL METADATA
+    # RETRIEVAL METADATA (SPAN-BASED)
     # ============================================================
 
     def extract_retrieval(self, raw: Dict[str, Any]):
 
-        rag = raw.get("rag_data", {}) or {}
-        scores = rag.get("retrieval_scores", {}) or {}
+        retrieval_span = None
 
-        confidence = raw.get("retrieval_confidence")
+        for span in raw.get("spans", []):
+            if span.get("type") == "retrieval":
+                retrieval_span = span
+                break
 
-        # ------------------------------------------------
-        # Ensure confidence is always a float
-        # ------------------------------------------------
-        if isinstance(confidence, dict):
-            confidence = confidence.get("avg_score")
+        if not retrieval_span:
+            return RetrievalInfo(
+                executed=False,
+                documents_found=0,
+                retrieval_confidence=None,
+                best_score=None,
+            )
 
-        if confidence is None:
-            confidence = scores.get("avg_score")
+        meta = retrieval_span.get("metadata", {}) or {}
 
-        if confidence is not None:
-            confidence = float(confidence)
+        docs = meta.get("documents", []) or []
+        scores = meta.get("scores", []) or []
 
-        # ------------------------------------------------
-        # Documents found
-        # ------------------------------------------------
-        documents_found = raw.get("documents_found")
+        documents_found = len(docs)
 
-        if documents_found is None:
-            documents_found = rag.get("documents_found")
-
-        # fallback to span inspection
-        if documents_found is None:
-
-            for span in raw.get("spans", []):
-
-                if span.get("type") == "retrieval" or span.get("name") == "vector-search":
-
-                    docs = span.get("output", {}).get("documents", []) or []
-
-                    documents_found = len(docs)
-                    break
-
-        documents_found = int(documents_found or 0)
-
-        # ------------------------------------------------
-        # Best score (cosine similarity = higher is better)
-        # ------------------------------------------------
-        best_score = scores.get("max_score")
-
-        if best_score is not None:
-            best_score = float(best_score)
+        metrics = compute_retrieval_metrics(scores)
 
         return RetrievalInfo(
-            executed=bool(raw.get("retrieval_executed", documents_found > 0)),
+            executed=True,
             documents_found=documents_found,
-            retrieval_confidence=confidence,
-            best_score=best_score,
+            retrieval_confidence=metrics["retrieval_confidence"],
+            best_score=metrics["max_score"],
         )
 
     # ============================================================
@@ -111,16 +90,21 @@ class GeminiAdapter(BaseProviderAdapter):
 
             span_data = dict(
                 span_id=str(span.get("span_id", "unknown")),
+                parent_span_id=span.get("parent_span_id"),   # <-- ADD THIS
+                trace_id=str(span.get("trace_id", raw.get("trace_id"))),
                 type=span_type,
-                name=span_name,
-                latency_ms=latency,
+                name=str(span.get("name", "unknown")),
+                status=str(span.get("status", "success")),
+                start_time=int(span.get("start_time", 0) or 0),
+                end_time=int(span.get("end_time", 0) or 0),
+                latency_ms=int(span.get("latency_ms", 0) or 0),
                 prompt_tokens=prompt,
                 completion_tokens=completion,
                 total_tokens=total,
                 cost_usd=cost,
+
             )
 
-            # Only for LLM spans (same behaviour as Groq)
             if span_type == "llm":
 
                 temperature = metadata.get("temperature")
@@ -135,40 +119,32 @@ class GeminiAdapter(BaseProviderAdapter):
             normalized_spans.append(SpanModel(**span_data))
 
         return normalized_spans
+
     # ============================================================
-    # RETRIEVED DOCUMENT CONTENT
+    # RETRIEVED DOCUMENT CONTENT (SPAN-BASED)
     # ============================================================
 
     def extract_retrieved_context(self, raw: Dict[str, Any]):
 
         contexts: List[str] = []
 
-        # Prefer canonical rag_data
-        rag_data = raw.get("rag_data", {}) or {}
+        for span in raw.get("spans", []):
 
-        docs = rag_data.get("retrieved_documents", []) or []
+            if span.get("type") != "retrieval":
+                continue
 
-        for doc in docs:
+            meta = span.get("metadata", {}) or {}
 
-            content = doc.get("content") or doc.get("content_preview")
+            docs = meta.get("documents", []) or []
 
-            if content:
-                contexts.append(clean_text(content))
+            for doc in docs:
 
-        # fallback to span extraction
-        if not contexts:
+                if isinstance(doc, dict):
+                    content = doc.get("content") or doc.get("content_preview")
+                else:
+                    content = str(doc)
 
-            for span in raw.get("spans", []):
-
-                if span.get("type") == "retrieval" or span.get("name") == "vector-search":
-
-                    documents = span.get("output", {}).get("documents", []) or []
-
-                    for doc in documents:
-
-                        content = doc.get("content")
-
-                        if content:
-                            contexts.append(clean_text(content))
+                if content:
+                    contexts.append(clean_text(content))
 
         return contexts

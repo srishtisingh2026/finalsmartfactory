@@ -109,20 +109,27 @@ class RetrievalInfo(BaseSchema):
 class SpanModel(BaseSchema):
 
     span_id: str
+    parent_span_id: Optional[str] = None
+    trace_id: Optional[str] = None
+
     type: str
     name: str
+
+    status: Optional[StatusEnum] = None
+
+    start_time: Optional[int] = None
+    end_time: Optional[int] = None
     latency_ms: int
 
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
+
     cost_usd: float = 0.0
 
     # Only present for LLM spans
     temperature: Optional[float] = None
     context_tokens: Optional[int] = None
-
-
 # =========================================================
 # Canonical Trace
 # =========================================================

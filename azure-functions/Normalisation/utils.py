@@ -2,6 +2,7 @@ from .schema import CostInfo
 from datetime import datetime
 from typing import Any, Dict
 import re
+import statistics
 
 # ============================================================
 # PROVIDER DETECTION
@@ -141,3 +142,39 @@ def clean_text(text: str) -> str:
     text = re.sub(r"\s+", " ", text)
 
     return text.strip()
+
+
+def compute_retrieval_metrics(scores):
+
+    if not scores:
+        return {
+            "avg_score": None,
+            "min_score": None,
+            "max_score": None,
+            "std_score": None,
+            "retrieval_confidence": None,
+        }
+
+    avg_score = statistics.mean(scores)
+    min_score = min(scores)
+    max_score = max(scores)
+
+    std_score = statistics.pstdev(scores) if len(scores) > 1 else 0
+
+    coverage = min(len(scores) / 3, 1)
+    consistency = 1 / (1 + std_score)
+
+    retrieval_confidence = round(
+        0.6 * avg_score +
+        0.25 * coverage +
+        0.15 * consistency,
+        4
+    )
+
+    return {
+        "avg_score": avg_score,
+        "min_score": min_score,
+        "max_score": max_score,
+        "std_score": std_score,
+        "retrieval_confidence": retrieval_confidence,
+    }

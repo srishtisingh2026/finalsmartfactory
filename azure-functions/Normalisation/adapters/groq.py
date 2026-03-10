@@ -1,7 +1,9 @@
 from typing import Dict, Any
+
 from .base import BaseProviderAdapter
 from ..schema import RetrievalInfo, SpanModel
 from ..utils import clean_text
+from ..utils import compute_retrieval_metrics
 from ..pricing import calculate_span_cost
 
 
@@ -34,25 +36,40 @@ class GroqAdapter(BaseProviderAdapter):
         )
 
     # ============================================================
-    # RETRIEVAL METADATA
+    # RETRIEVAL METADATA (SPAN-BASED)
     # ============================================================
 
     def extract_retrieval(self, raw: Dict[str, Any]):
 
-        rag = raw.get("rag_data", {}) or {}
-        scores = rag.get("retrieval_scores", {}) or {}
+        retrieval_span = None
 
-        # root confidence preferred
-        confidence = raw.get("retrieval_confidence")
+        for span in raw.get("spans", []):
+            if span.get("type") == "retrieval":
+                retrieval_span = span
+                break
 
-        if confidence is None:
-            confidence = scores.get("avg_score")
+        if not retrieval_span:
+            return RetrievalInfo(
+                executed=False,
+                documents_found=0,
+                retrieval_confidence=None,
+                best_score=None,
+            )
+
+        meta = retrieval_span.get("metadata", {}) or {}
+
+        docs = meta.get("documents", []) or []
+        scores = meta.get("scores", []) or []
+
+        documents_found = len(docs)
+
+        metrics = compute_retrieval_metrics(scores)
 
         return RetrievalInfo(
-            executed=bool(raw.get("retrieval_executed", False)),
-            documents_found=int(raw.get("documents_found", 0) or 0),
-            retrieval_confidence=confidence,
-            best_score=scores.get("max_score"),  # max distance = best
+            executed=True,
+            documents_found=documents_found,
+            retrieval_confidence=metrics["retrieval_confidence"],
+            best_score=metrics["max_score"],
         )
 
     # ============================================================
@@ -71,22 +88,29 @@ class GroqAdapter(BaseProviderAdapter):
             prompt = int(usage.get("prompt_tokens", 0) or 0)
             completion = int(usage.get("completion_tokens", 0) or 0)
             total = int(usage.get("total_tokens", 0) or 0)
+
             meta = span.get("metadata", {}) or {}
 
             temperature = meta.get("temperature")
             context_tokens = meta.get("context_tokens")
 
+            span_type = str(span.get("type", "unknown"))
+
+
             cost = 0.0
 
-            if span.get("type") == "llm":
+            if span_type == "llm":
                 cost = calculate_span_cost(model, prompt, completion)
-
-            span_type = str(span.get("type", "unknown"))
 
             span_data = dict(
                 span_id=str(span.get("span_id", "unknown")),
+                parent_span_id=span.get("parent_span_id"),   # <-- ADD THIS
+                trace_id=str(span.get("trace_id", raw.get("trace_id"))),
                 type=span_type,
                 name=str(span.get("name", "unknown")),
+                status=str(span.get("status", "success")),
+                start_time=int(span.get("start_time", 0) or 0),
+                end_time=int(span.get("end_time", 0) or 0),
                 latency_ms=int(span.get("latency_ms", 0) or 0),
                 prompt_tokens=prompt,
                 completion_tokens=completion,
@@ -94,7 +118,6 @@ class GroqAdapter(BaseProviderAdapter):
                 cost_usd=cost,
             )
 
-            # Only attach these for LLM spans
             if span_type == "llm":
                 span_data["temperature"] = temperature
                 span_data["context_tokens"] = context_tokens
@@ -104,21 +127,27 @@ class GroqAdapter(BaseProviderAdapter):
         return spans
 
     # ============================================================
-    # RETRIEVED DOCUMENT CONTENT
+    # RETRIEVED DOCUMENT CONTEXT (SPAN-BASED)
     # ============================================================
 
     def extract_retrieved_context(self, raw: Dict[str, Any]):
 
         contexts = []
 
-        rag_data = raw.get("rag_data", {})
-        docs = rag_data.get("retrieved_documents", [])
+        for span in raw.get("spans", []):
 
-        for doc in docs:
+            if span.get("type") != "retrieval":
+                continue
 
-            if isinstance(doc, dict):
+            meta = span.get("metadata", {}) or {}
+            docs = meta.get("documents", []) or []
 
-                content = doc.get("content") or doc.get("content_preview")
+            for doc in docs:
+
+                if isinstance(doc, dict):
+                    content = doc.get("content") or doc.get("content_preview")
+                else:
+                    content = str(doc)
 
                 if content:
                     contexts.append(clean_text(content))
