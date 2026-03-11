@@ -7,6 +7,7 @@ from shared.cosmos import traces_container_read as traces_container
 SESSION_IDLE_TIMEOUT = 5 * 60  # 5 minutes
 router = APIRouter()
 
+
 # -----------------------------
 # Helpers
 # -----------------------------
@@ -25,18 +26,26 @@ def safe_round(value: float, decimals: int = 6):
 
 
 def normalize_ts(ts):
-    """Normalize Cosmos timestamps (ms or sec) → seconds."""
+    """
+    Convert timestamp to seconds.
+    Handles both milliseconds and seconds.
+    """
     if ts is None:
         return None
-    if ts > 1e12:  # ms
+
+    ts = float(ts)
+
+    if ts > 1e11:  # milliseconds
         return ts / 1000
+
     return ts
 
 
 def ts_to_iso(ts):
-    """Convert seconds timestamp → ISO."""
+    """Convert seconds timestamp → ISO"""
     if ts is None:
         return None
+
     return datetime.utcfromtimestamp(ts).isoformat() + "Z"
 
 
@@ -71,7 +80,9 @@ def list_sessions():
             }
         )
 
+        # -----------------------------
         # Aggregate sessions
+        # -----------------------------
         for t in traces:
             session_obj = t.get("session", {})
             request_obj = t.get("request", {})
@@ -80,6 +91,7 @@ def list_sessions():
             perf_obj = t.get("performance", {})
 
             session_id = session_obj.get("session_id")
+
             if not session_id:
                 continue
 
@@ -98,27 +110,45 @@ def list_sessions():
 
             s["avg_latency_ms"] += perf_obj.get("latency_ms", 0)
 
+            # -----------------------------
+            # Timestamp extraction
+            # -----------------------------
             ts = normalize_ts(request_obj.get("timestamp"))
-            if ts:
+
+            if ts is not None:
                 if s["created"] is None or ts < s["created"]:
                     s["created"] = ts
+
                 if s["last_activity"] is None or ts > s["last_activity"]:
                     s["last_activity"] = ts
 
         now_sec = datetime.now(timezone.utc).timestamp()
 
-        # Compute final values
+        # -----------------------------
+        # Final calculations
+        # -----------------------------
         for s in sessions.values():
+
             if s["trace_count"] > 0:
-                s["avg_latency_ms"] = safe_round(s["avg_latency_ms"] / s["trace_count"], 2)
+                s["avg_latency_ms"] = safe_round(
+                    s["avg_latency_ms"] / s["trace_count"], 2
+                )
 
             s["total_cost_usd"] = safe_round(s["total_cost_usd"], 6)
 
-            # Active session logic: use NOW if session still active
-            last = s["last_activity"]
             created = s["created"]
+            last = s["last_activity"]
 
-            if last and (now_sec - last <= SESSION_IDLE_TIMEOUT):
+            if created is None or last is None:
+                s["session_start"] = None
+                s["session_end"] = None
+                s["session_duration_ms"] = None
+                continue
+
+            # -----------------------------
+            # Active session logic
+            # -----------------------------
+            if now_sec - last <= SESSION_IDLE_TIMEOUT:
                 effective_end = now_sec
             else:
                 effective_end = last
@@ -126,10 +156,7 @@ def list_sessions():
             s["session_start"] = ts_to_iso(created)
             s["session_end"] = ts_to_iso(effective_end)
 
-            if created and effective_end:
-                s["session_duration_ms"] = int((effective_end - created) * 1000)
-            else:
-                s["session_duration_ms"] = None
+            s["session_duration_ms"] = int((effective_end - created) * 1000)
 
         return scrub(list(sessions.values()))
 
@@ -157,40 +184,63 @@ def get_session(session_id: str):
         session_obj = traces[0].get("session", {})
         request_obj = traces[0].get("request", {})
 
-        total_cost_usd = sum(t.get("cost", {}).get("total_cost_usd", 0.0) for t in traces)
+        total_cost_usd = sum(
+            t.get("cost", {}).get("total_cost_usd", 0.0) for t in traces
+        )
 
-        # Normalize timestamps
-        timestamps = [normalize_ts(t.get("request", {}).get("timestamp")) for t in traces]
-        timestamps = [ts for ts in timestamps if ts]
+        # -----------------------------
+        # Timestamp extraction
+        # -----------------------------
+        timestamps = [
+            normalize_ts(t.get("request", {}).get("timestamp"))
+            for t in traces
+        ]
 
-        created = min(timestamps)
-        last_activity = max(timestamps)
+        timestamps = [ts for ts in timestamps if ts is not None]
+
+        if not timestamps:
+            created = None
+            last_activity = None
+        else:
+            created = min(timestamps)
+            last_activity = max(timestamps)
 
         now_sec = datetime.now(timezone.utc).timestamp()
 
-        # Active session?
-        if now_sec - last_activity <= SESSION_IDLE_TIMEOUT:
-            effective_end = now_sec
+        if created is None or last_activity is None:
+            effective_end = None
         else:
-            effective_end = last_activity
+            if now_sec - last_activity <= SESSION_IDLE_TIMEOUT:
+                effective_end = now_sec
+            else:
+                effective_end = last_activity
 
         session = {
             "session_id": session_id,
             "user_id": session_obj.get("user_id", "unknown"),
             "environment": request_obj.get("environment"),
             "trace_count": len(traces),
-            "total_tokens": sum(t.get("usage", {}).get("total_tokens", 0) for t in traces),
+            "total_tokens": sum(
+                t.get("usage", {}).get("total_tokens", 0) for t in traces
+            ),
             "total_cost_usd": safe_round(total_cost_usd, 6),
             "total_cost_micro_usd": int(total_cost_usd * 1_000_000),
             "avg_latency_ms": safe_round(
-                sum(t.get("performance", {}).get("latency_ms", 0) for t in traces) / len(traces),
+                sum(
+                    t.get("performance", {}).get("latency_ms", 0)
+                    for t in traces
+                ) / len(traces),
                 2,
             ),
             "created": created,
             "last_activity": last_activity,
             "session_start": ts_to_iso(created),
             "session_end": ts_to_iso(effective_end),
-            "session_duration_ms": int((effective_end - created) * 1000),
+            "session_duration_ms": (
+                int((effective_end - created) * 1000)
+                if created and effective_end
+                else None
+            ),
             "traces": traces,
         }
 
