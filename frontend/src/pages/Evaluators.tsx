@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Plus } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -14,6 +14,9 @@ import EvaluatorsTable from "../components/EvaluatorsTable";
 import TemplatesList from "../components/TemplatesList";
 import LogsTable from "../components/LogsTable";
 import TraceModal from "../components/TraceModal";
+
+const ALL_EVALUATORS = "All Evaluators";
+const ALL_STATUS = "All Status";
 
 const EvaluatorsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -33,8 +36,9 @@ const EvaluatorsPage: React.FC = () => {
   const [selectedTrace, setSelectedTrace] = useState<Trace | null>(null);
   const [loadingTrace, setLoadingTrace] = useState(false);
 
-  const [filterEvaluator, setFilterEvaluator] = useState("All Evaluators");
-  const [filterStatus, setFilterStatus] = useState("All Status");
+
+  const [filterEvaluator, setFilterEvaluator] = useState(ALL_EVALUATORS);
+  const [filterStatus, setFilterStatus] = useState(ALL_STATUS);
   const [showEvaluatorDropdown, setShowEvaluatorDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
@@ -43,19 +47,35 @@ const EvaluatorsPage: React.FC = () => {
     if (tab) setActiveTab(tab);
   }, [location.state]);
 
-  /** Filter logs */
-  const filteredLogs = logs.filter((log) => {
-    const evalMatch =
-      filterEvaluator === "All Evaluators" ||
-      log.evaluator_name === filterEvaluator;
+  /** Filter logs with robust matching */
+  const filteredLogs = useMemo(() => {
+    console.log("Filtering logs...", { filterEvaluator, filterStatus, logsCount: logs.length });
+    return logs.filter((log) => {
+      // 1. Evaluator Filter
+      const logEval = (log.evaluator_name || "-").toLowerCase().trim();
+      const targetEval = filterEvaluator.toLowerCase().trim();
+      const isAllEvaluators = targetEval === ALL_EVALUATORS.toLowerCase().trim();
+      const evalMatch = isAllEvaluators || logEval === targetEval;
 
-    const status = (log.status || "").toLowerCase();
-    const statusMatch =
-      filterStatus === "All Status" ||
-      status === filterStatus.toLowerCase();
+      // 2. Status Filter
+      const logStatus = (log.status || "unknown").toLowerCase().trim();
+      const targetStatus = filterStatus.toLowerCase().trim();
+      const isAllStatus = targetStatus === ALL_STATUS.toLowerCase().trim();
+      const statusMatch = isAllStatus || logStatus === targetStatus;
 
-    return evalMatch && statusMatch;
-  });
+      const isMatch = evalMatch && statusMatch;
+
+      if (!isAllEvaluators || !isAllStatus) {
+        console.log(`[FILTER DEBUG] Trace: ${log.trace_id}`, {
+          eval: { log: logEval, target: targetEval, isAll: isAllEvaluators, match: evalMatch },
+          status: { log: logStatus, target: targetStatus, isAll: isAllStatus, match: statusMatch },
+          isMatch
+        });
+      }
+
+      return isMatch;
+    });
+  }, [logs, filterEvaluator, filterStatus, ALL_EVALUATORS, ALL_STATUS]);
 
   /** Fetch all data */
   useEffect(() => {
@@ -154,9 +174,8 @@ const EvaluatorsPage: React.FC = () => {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-6 py-2 rounded-lg text-xs font-bold capitalize ${
-              activeTab === tab ? "bg-[#1c212e] text-white" : "text-gray-500"
-            }`}
+            className={`px-6 py-2 rounded-lg text-xs font-bold capitalize ${activeTab === tab ? "bg-[#1c212e] text-white" : "text-gray-500"
+              }`}
           >
             {tab === "logs" ? "Evaluation Log" : tab}
           </button>

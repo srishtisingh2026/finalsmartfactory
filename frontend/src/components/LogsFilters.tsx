@@ -31,7 +31,7 @@ const LogsFilters: React.FC<LogsFiltersProps> = ({
     ...Array.from(
       new Set(
         logs
-          .map((l) =>l.evaluator_name)
+          .map((l) => l.evaluator_name || "-")
           .filter((v): v is string => typeof v === "string")
       )
     )
@@ -40,10 +40,11 @@ const LogsFilters: React.FC<LogsFiltersProps> = ({
   // Match backend statuses
   const statusOptions: string[] = [
     "All Status",
-    "completed",
-    "failed",
-    "skipped",
-    "unstable"
+    "Completed",
+    "Error",
+    "Timeout",
+    "Skipped",
+    "Unstable"
   ];
 
   return (
@@ -75,11 +76,10 @@ const LogsFilters: React.FC<LogsFiltersProps> = ({
                     setShowEvaluatorDropdown(false);
                   }}
                   className={`w-full flex items-center gap-2 text-left px-4 py-2 text-sm rounded-lg
-                  ${
-                    isSelected
+                  ${isSelected
                       ? "bg-[#13bba4] text-black font-bold"
                       : "text-gray-800 hover:bg-gray-200"
-                  }`}
+                    }`}
                 >
                   {isSelected && <Check size={14} className="text-black" />}
                   {opt}
@@ -116,11 +116,10 @@ const LogsFilters: React.FC<LogsFiltersProps> = ({
                     setShowStatusDropdown(false);
                   }}
                   className={`w-full flex items-center gap-2 text-left px-4 py-2 text-sm rounded-lg
-                  ${
-                    isSelected
+                  ${isSelected
                       ? "bg-[#13bba4] text-black font-bold"
                       : "text-gray-800 hover:bg-gray-200"
-                  }`}
+                    }`}
                 >
                   {isSelected && <Check size={14} className="text-black" />}
                   {opt}

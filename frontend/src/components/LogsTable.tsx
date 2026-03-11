@@ -43,8 +43,11 @@ const LogsTable: React.FC<LogsTableProps> = ({
     if (s === "skipped")
       return "bg-gray-500/10 text-gray-400 border-gray-500/20";
 
-    if (s === "failed")
+    if (s === "failed" || s === "error")
       return "bg-red-500/10 text-red-500 border-red-500/20";
+
+    if (s === "timeout")
+      return "bg-yellow-500/10 text-yellow-500 border-yellow-500/20";
 
     return "bg-gray-500/10 text-gray-400 border-gray-500/20";
   };
