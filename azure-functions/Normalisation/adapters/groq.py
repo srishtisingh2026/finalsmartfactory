@@ -10,24 +10,51 @@ from ..pricing import calculate_span_cost
 class GroqAdapter(BaseProviderAdapter):
 
     # ============================================================
-    # USAGE EXTRACTION
+    # INTERNAL HELPER — SAFE USAGE EXTRACTION
+    # ============================================================
+
+    def _get_usage(self, span: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract token usage safely from multiple possible locations.
+        """
+
+        # 1️⃣ direct span usage
+        usage = span.get("usage")
+        if usage:
+            return usage
+
+        # 2️⃣ metadata provider raw usage
+        usage = (
+            span.get("metadata", {})
+            .get("_provider_raw_usage", {})
+            .get("token_usage")
+        )
+        if usage:
+            return usage
+
+        return {}
+
+    # ============================================================
+    # USAGE EXTRACTION (TRACE LEVEL)
     # ============================================================
 
     def extract_usage(self, raw: Dict[str, Any]):
 
-        # Prefer span-level usage
+        # Prefer span-level LLM usage
         for span in raw.get("spans", []):
-            if span.get("type") == "llm" and span.get("usage"):
-                usage = span["usage"]
+            if span.get("type") == "llm":
 
-                return (
-                    int(usage.get("prompt_tokens", 0) or 0),
-                    int(usage.get("completion_tokens", 0) or 0),
-                    int(usage.get("total_tokens", 0) or 0),
-                )
+                usage = self._get_usage(span)
 
-        # fallback provider usage
-        usage = raw.get("provider_raw", {}).get("usage", {})
+                if usage:
+                    return (
+                        int(usage.get("prompt_tokens", 0) or 0),
+                        int(usage.get("completion_tokens", 0) or 0),
+                        int(usage.get("total_tokens", 0) or 0),
+                    )
+
+        # Fallback: provider raw usage
+        usage = raw.get("provider_raw", {}).get("token_usage", {})
 
         return (
             int(usage.get("prompt_tokens", 0) or 0),
@@ -83,7 +110,7 @@ class GroqAdapter(BaseProviderAdapter):
 
         for span in raw.get("spans", []):
 
-            usage = span.get("usage", {}) or {}
+            usage = self._get_usage(span)
 
             prompt = int(usage.get("prompt_tokens", 0) or 0)
             completion = int(usage.get("completion_tokens", 0) or 0)
@@ -96,15 +123,13 @@ class GroqAdapter(BaseProviderAdapter):
 
             span_type = str(span.get("type", "unknown"))
 
-
             cost = 0.0
-
             if span_type == "llm":
                 cost = calculate_span_cost(model, prompt, completion)
 
             span_data = dict(
                 span_id=str(span.get("span_id", "unknown")),
-                parent_span_id=span.get("parent_span_id"),   # <-- ADD THIS
+                parent_span_id=span.get("parent_span_id"),
                 trace_id=str(span.get("trace_id", raw.get("trace_id"))),
                 type=span_type,
                 name=str(span.get("name", "unknown")),
@@ -127,7 +152,7 @@ class GroqAdapter(BaseProviderAdapter):
         return spans
 
     # ============================================================
-    # RETRIEVED DOCUMENT CONTEXT (SPAN-BASED)
+    # RETRIEVED DOCUMENT CONTEXT
     # ============================================================
 
     def extract_retrieved_context(self, raw: Dict[str, Any]):
