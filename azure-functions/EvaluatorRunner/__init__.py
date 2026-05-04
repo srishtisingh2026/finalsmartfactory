@@ -1,4 +1,7 @@
 import logging
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import random
 import time
 from datetime import datetime, timezone
@@ -81,10 +84,16 @@ def main(documents: DocumentList):
 
         executed_count = 0
 
-        deployments = exec_cfg.get(
+        # Handle ensemble toggle
+        enable_ensemble = ev.get("enable_ensemble", False)
+        
+        all_deployments = exec_cfg.get(
             "ensemble_deployments",
             ["gpt-4o-mini"]
         )
+        
+        # If ensemble is disabled, only use the first model to save quota
+        deployments = all_deployments if enable_ensemble else [all_deployments[0]]
 
         variance_threshold = exec_cfg.get("variance_threshold", 0.10)
 
@@ -192,6 +201,12 @@ def main(documents: DocumentList):
             raw_outputs = {}
 
             total_eval_cost = 0.0
+
+            llm_ensemble_score = None
+            metric_score = None
+            metric_calculation = "Not calculated"
+            variance = None
+            agreement = None
 
             try:
 

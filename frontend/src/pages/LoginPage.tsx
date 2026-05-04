@@ -10,7 +10,8 @@ export default function LoginPage() {
 
   // 👇 FIX: If already logged in → send to dashboard
   useEffect(() => {
-    if (accounts.length > 0) {
+    const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    if (isLocal || accounts.length > 0) {
       navigate("/dashboard", { replace: true });
     }
   }, [accounts, navigate]);

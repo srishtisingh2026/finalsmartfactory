@@ -44,6 +44,8 @@ def normalize_trace(t: dict) -> dict:
     return {
         "trace_id": t.get("trace_id") or t.get("id"),
         "trace_name": t.get("trace_name"),
+        "application_name": t.get("application_name"),
+        "tags": t.get("tags", {}),
 
         # Session Info
         "session_id": session.get("session_id"),
@@ -94,6 +96,7 @@ def get_all_traces(
     user_id: str | None = Query(None),
     model: str | None = Query(None),
     provider: str | None = Query(None),
+    application_name: str | None = Query(None),
     limit: int = Query(200, ge=1, le=1000),
 ):
     try:
@@ -116,6 +119,10 @@ def get_all_traces(
         if provider:
             filters.append("c.model_info.provider = @provider")
             parameters.append({"name": "@provider", "value": provider})
+
+        if application_name:
+            filters.append("c.application_name = @application_name")
+            parameters.append({"name": "@application_name", "value": application_name})
 
         if filters:
             query += " WHERE " + " AND ".join(filters)

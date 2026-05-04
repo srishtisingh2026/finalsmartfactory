@@ -4,7 +4,8 @@ from typing import Optional
 from jinja2 import Template
 
 from shared.cosmos import DB_READ
-from shared.llm import call_llm, client
+from shared.llm import call_llm, client, LLM_PROVIDER
+import google.generativeai as genai
 
 
 # ----------------------------------------------------
@@ -20,6 +21,11 @@ TEMPLATES_CONTAINER = DB_READ.get_container_client("templates")
 MODEL_PRICING = {
     "gpt-4o": {"input": 0.000005, "output": 0.000015},
     "gpt-4o-mini": {"input": 0.00000015, "output": 0.0000006},
+    "gemini-1.5-flash": {"input": 0.000000075, "output": 0.0000003}, # Approx
+    "gemini-1.5-pro": {"input": 0.0000035, "output": 0.0000105},
+    "models/gemini-2.5-flash": {"input": 0.000000075, "output": 0.0000003},
+    "models/gemini-2.5-pro": {"input": 0.0000035, "output": 0.0000105},
+    "models/gemini-2.0-flash": {"input": 0.000000075, "output": 0.0000003},
 }
 
 
@@ -115,14 +121,26 @@ def get_embedding(text: str, model: str = "text-embedding-3-small") -> list:
         return EMBEDDING_CACHE[cache_key]
         
     try:
-        response = client.embeddings.create(input=[text], model=model)
-        embedding = response.data[0].embedding
+        if LLM_PROVIDER == "gemini":
+            try:
+                result = genai.embed_content(
+                    model="models/gemini-embedding-001",
+                    content=text,
+                    task_type="retrieval_document"
+                )
+                embedding = result['embedding']
+            except Exception as e:
+                logging.error(f"[engine] Gemini embedding failed: {e}")
+                return []
+        else:
+            response = client.embeddings.create(input=[text], model=model)
+            embedding = response.data[0].embedding
         
         # Store in cache
         EMBEDDING_CACHE[cache_key] = embedding
         return embedding
     except Exception as e:
-        logging.error(f"[engine] Embedding failed: {e}")
+        logging.error(f"[engine] Embedding failed ({LLM_PROVIDER}): {e}")
         return []
 
 
@@ -207,9 +225,32 @@ def run_evaluator(
     prompt_template = template_doc["template"]
     required_inputs = template_doc.get("inputs", [])
 
-    model = deployment or model_override or template_model
+    # ----------------------------------------------------
+    # Model Selection Logic (Precision Fix)
+    # ----------------------------------------------------
+    enable_ensemble = evaluator_doc.get("enable_ensemble", False)
+    execution_cfg = evaluator_doc.get("execution", {})
 
-    logging.info(f"[engine] Using model/deployment: {model}")
+    if enable_ensemble is True:
+        # If ensemble is on, use the provided deployment or the first one in the list
+        selected_model = deployment or execution_cfg.get("ensemble_deployments", ["gpt-4o-mini"])[0]
+    else:
+        # If ensemble is off, use user-chosen model (from model_name, deployment, or overrides)
+        # Check root and execution block as per schema variants
+        selected_model = (
+            evaluator_doc.get("model_name") or 
+            evaluator_doc.get("deployment") or 
+            execution_cfg.get("model_name") or 
+            execution_cfg.get("deployment") or
+            model_override or 
+            template_model or
+            "gpt-4o-mini" # Last resort
+        )
+
+    logging.info(f"Ensemble enabled: {enable_ensemble}")
+    logging.info(f"Selected model: {selected_model}")
+
+    model = selected_model
 
     template_variables = {}
 

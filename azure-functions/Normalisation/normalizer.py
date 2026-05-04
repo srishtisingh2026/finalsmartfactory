@@ -87,6 +87,9 @@ def normalize_trace(raw: Dict[str, Any]) -> CanonicalTrace:
         trace_id=str(trace_id),
         trace_name=str(raw.get("trace_name", "unknown")),
 
+        application_name=raw.get("application_name"),
+        tags=raw.get("tags"),
+
         input_text=extract_input(raw),
         output_text=extract_output(raw),
         retrieved_context=retrieved_context,

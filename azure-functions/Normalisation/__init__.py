@@ -1,8 +1,8 @@
 import logging
 import os
-from azure.cosmos import CosmosClient
-
+from shared.secrets import get_secret
 from .normalizer import normalize_trace
+from azure.cosmos import CosmosClient
 
 
 def main(documents):
@@ -14,7 +14,7 @@ def main(documents):
     logging.info(f"Processing {len(documents)} raw traces...")
 
     cosmos = CosmosClient.from_connection_string(
-        os.environ["COSMOS_CONN_WRITE"]
+        get_secret("COSMOS-CONN-WRITE")
     )
 
     db = cosmos.get_database_client("llmops-data")

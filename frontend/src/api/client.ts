@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_BASE_URL ="https://smart-factory-backend-code-bfhma8cmf4ghesee.eastus2-01.azurewebsites.net";
+const API_BASE_URL = import.meta.env.VITE_API_BASE;
 
 export const api = axios.create({
   baseURL: API_BASE_URL,

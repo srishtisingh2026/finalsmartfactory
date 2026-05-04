@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, List
+from typing import Optional, List, Dict
 from pydantic import BaseModel, ConfigDict
 
 
@@ -140,6 +140,9 @@ class CanonicalTrace(BaseSchema):
     id: str
     trace_id: str
     trace_name: str
+
+    application_name: Optional[str] = None
+    tags: Optional[Dict[str, str]] = None
 
     input_text: Optional[str] = None
     output_text: Optional[str] = None

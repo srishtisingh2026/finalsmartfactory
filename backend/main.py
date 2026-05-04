@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -9,16 +10,25 @@ from routers.sessions import router as sessions_router
 from routers.metrics import router as metrics_router
 from routers.audit import router as audit_router
 from routers.rca import router as rca_router
+
 app = FastAPI(
     title="Smart Factory AI Backend",
     version="1.0.0",
 )
 
+# Detect if running in Azure or locally
+is_local = os.getenv("WEBSITE_HOSTNAME") is None
+origins = [
+    "https://gentle-mud-0f818720f.1.azurestaticapps.net"
+]
+
+if is_local:
+    origins.append("http://localhost:5173")
+    print("DEBUG: Running locally, enabled CORS for http://localhost:5173")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://gentle-mud-0f818720f.1.azurestaticapps.net"
-    ],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

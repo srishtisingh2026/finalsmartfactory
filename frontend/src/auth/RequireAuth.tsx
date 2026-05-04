@@ -8,6 +8,14 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
   const { accounts, instance } = useMsal();
 
   // -------------------------------------------------------
+  // 0. BYPASS FOR LOCAL DEVELOPMENT (Resource deleted)
+  // -------------------------------------------------------
+  const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  if (isLocal) {
+    return children;
+  }
+
+  // -------------------------------------------------------
   // 1. User NOT logged in → redirect to login page
   // -------------------------------------------------------
   if (!accounts || accounts.length === 0) {

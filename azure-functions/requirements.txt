@@ -8,3 +8,5 @@ pydantic
 jinja2==3.1.4
 openai
 groq
+python-dotenv
+google-generativeai>=0.5.0
