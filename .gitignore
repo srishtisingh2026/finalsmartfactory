@@ -19,3 +19,8 @@ build/
 
 backend/.env
 .env
+
+
+.env
+*.env
+azure-functions/local.settings.json
